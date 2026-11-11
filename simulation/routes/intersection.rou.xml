@@ -1,0 +1,18 @@
+
+<routes>
+    <vType id="car" accel="2.6" decel="4.5" length="5" maxSpeed="13.89"/>
+
+    <flow id="N_S" begin="0" end="3600" period="10" type="car" from="north_in" to="south_out" departLane="1" departSpeed="max"/>
+    <flow id="N_E" begin="1" end="3600" period="15" type="car" from="north_in" to="east_out" departLane="3" departSpeed="max"/>
+    <flow id="S_N" begin="2" end="3600" period="10" type="car" from="south_in" to="north_out" departLane="1" departSpeed="max"/>
+    <flow id="N_W" begin="2" end="3600" period="20" type="car" from="north_in" to="west_out" departLane="0" departSpeed="max"/>
+    <flow id="S_W" begin="3" end="3600" period="15" type="car" from="south_in" to="west_out" departLane="3" departSpeed="max"/>
+    <flow id="E_W" begin="4" end="3600" period="10" type="car" from="east_in" to="west_out" departLane="1" departSpeed="max"/>
+    <flow id="S_E" begin="4" end="3600" period="20" type="car" from="south_in" to="east_out" departLane="0" departSpeed="max"/>
+    <flow id="E_S" begin="5" end="3600" period="15" type="car" from="east_in" to="south_out" departLane="3" departSpeed="max"/>
+    <flow id="W_E" begin="6" end="3600" period="10" type="car" from="west_in" to="east_out" departLane="1" departSpeed="max"/>
+    <flow id="E_N" begin="6" end="3600" period="20" type="car" from="east_in" to="north_out" departLane="0" departSpeed="max"/>
+    <flow id="W_N" begin="7" end="3600" period="15" type="car" from="west_in" to="north_out" departLane="3" departSpeed="max"/>
+    <flow id="W_S" begin="8" end="3600" period="20" type="car" from="west_in" to="south_out" departLane="0" departSpeed="max"/>
+    
+</routes>

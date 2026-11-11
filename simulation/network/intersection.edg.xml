@@ -1,0 +1,10 @@
+﻿<edges>
+    <edge id="north_in" from="n" to="intersection_0" numLanes="5" speed="13.89" width="3.5"/>
+    <edge id="south_in" from="s" to="intersection_0" numLanes="5" speed="13.89" width="3.5"/>
+    <edge id="east_in" from="e" to="intersection_0" numLanes="5" speed="13.89" width="3.5"/>
+    <edge id="west_in" from="w" to="intersection_0" numLanes="5" speed="13.89" width="3.5"/>
+    <edge id="north_out" from="intersection_0" to="n" numLanes="5" speed="13.89" width="3.5"/>
+    <edge id="south_out" from="intersection_0" to="s" numLanes="5" speed="13.89" width="3.5"/>
+    <edge id="east_out" from="intersection_0" to="e" numLanes="5" speed="13.89" width="3.5"/>
+    <edge id="west_out" from="intersection_0" to="w" numLanes="5" speed="13.89" width="3.5"/>
+</edges>

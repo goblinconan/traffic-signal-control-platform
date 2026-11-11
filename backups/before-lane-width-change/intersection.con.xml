@@ -1,0 +1,29 @@
+<connections>
+    <!-- 北进口 -->
+    <connection from="north_in" to="west_out" fromLane="0" toLane="0"/> <!-- 右转 -->
+    <connection from="north_in" to="south_out" fromLane="1" toLane="1"/> <!-- 直行 -->
+    <connection from="north_in" to="south_out" fromLane="2" toLane="2"/> <!-- 直行 -->
+    <connection from="north_in" to="east_out" fromLane="3" toLane="3"/> <!-- 左转 -->
+    <connection from="north_in" to="east_out" fromLane="4" toLane="4"/> <!-- 左转 -->
+
+    <!-- 南进口 -->
+    <connection from="south_in" to="east_out" fromLane="0" toLane="0"/> <!-- 右转 -->
+    <connection from="south_in" to="north_out" fromLane="1" toLane="1"/> <!-- 直行 -->
+    <connection from="south_in" to="north_out" fromLane="2" toLane="2"/> <!-- 直行 -->
+    <connection from="south_in" to="west_out" fromLane="3" toLane="3"/> <!-- 左转 -->
+    <connection from="south_in" to="west_out" fromLane="4" toLane="4"/> <!-- 左转 -->
+
+    <!-- 东进口 -->
+    <connection from="east_in" to="north_out" fromLane="0" toLane="0"/> <!-- 右转 -->
+    <connection from="east_in" to="west_out" fromLane="1" toLane="1"/> <!-- 直行 -->
+    <connection from="east_in" to="west_out" fromLane="2" toLane="2"/> <!-- 直行 -->
+    <connection from="east_in" to="south_out" fromLane="3" toLane="3"/> <!-- 左转 -->
+    <connection from="east_in" to="south_out" fromLane="4" toLane="4"/> <!-- 左转 -->
+
+    <!-- 西进口 -->
+    <connection from="west_in" to="south_out" fromLane="0" toLane="0"/> <!-- 右转 -->
+    <connection from="west_in" to="east_out" fromLane="1" toLane="1"/> <!-- 直行 -->
+    <connection from="west_in" to="east_out" fromLane="2" toLane="2"/> <!-- 直行 -->
+    <connection from="west_in" to="north_out" fromLane="3" toLane="3"/> <!-- 左转 -->
+    <connection from="west_in" to="north_out" fromLane="4" toLane="4"/> <!-- 左转 -->
+</connections>

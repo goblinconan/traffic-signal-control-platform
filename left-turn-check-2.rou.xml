@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-11-11T21:46:28.771875+08:00 by Eclipse SUMO sumo 1.28.0
+<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value=".\simulation\config\../network/intersection.net.xml"/>
+        <route-files value=".\simulation\config\../routes/intersection.rou.xml"/>
+    </input>
+
+    <output>
+        <vehroute-output value=".\left-turn-check-2.rou.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="120"/>
+        <step-length value="0.5"/>
+    </time>
+
+    <processing>
+        <time-to-teleport value="-1"/>
+    </processing>
+
+    <report>
+        <no-step-log value="true"/>
+    </report>
+
+</sumoConfiguration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vehicle id="N_S.0" type="car" depart="0.00" departLane="1" departSpeed="13.89" speedFactor="1.0600" arrival="29.50">
+        <route edges="north_in south_out"/>
+    </vehicle>
+
+    <vehicle id="S_N.0" type="car" depart="2.00" departLane="1" departSpeed="13.033" speedFactor="0.9383" arrival="33.50">
+        <route edges="south_in north_out"/>
+    </vehicle>
+
+    <vehicle id="N_S.1" type="car" depart="10.00" departLane="1" departSpeed="13.89" speedFactor="1.0458" arrival="39.50">
+        <route edges="north_in south_out"/>
+    </vehicle>
+
+    <vehicle id="S_N.1" type="car" depart="12.00" departLane="1" departSpeed="12.3065" speedFactor="0.8860" arrival="45.50">
+        <route edges="south_in north_out"/>
+    </vehicle>
+
+    <vehicle id="N_S.2" type="car" depart="20.00" departLane="1" departSpeed="13.89" speedFactor="1.0907" arrival="49.50">
+        <route edges="north_in south_out"/>
+    </vehicle>
+
+    <vehicle id="S_N.2" type="car" depart="22.00" departLane="1" departSpeed="13.89" speedFactor="1.0263" arrival="51.50">
+        <route edges="south_in north_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.0" type="car" depart="4.00" departLane="1" departSpeed="13.89" speedFactor="1.0104" arrival="85.00">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.0" type="car" depart="6.00" departLane="1" departSpeed="13.89" speedFactor="1.0827" arrival="85.50">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="W_S.0" type="car" depart="8.00" departLane="0" departSpeed="11.5426" speedFactor="0.8310" arrival="85.50">
+        <route edges="west_in south_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.1" type="car" depart="14.00" departLane="1" departSpeed="13.0274" speedFactor="0.9379" arrival="86.00">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.2" type="car" depart="24.00" departLane="1" departSpeed="13.89" speedFactor="1.1229" arrival="86.50">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.2" type="car" depart="26.00" departLane="1" departSpeed="13.7678" speedFactor="0.9912" arrival="87.00">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.1" type="car" depart="16.00" departLane="1" departSpeed="11.9023" speedFactor="0.8569" arrival="87.50">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="W_S.1" type="car" depart="28.00" departLane="0" departSpeed="12.8733" speedFactor="0.9268" arrival="87.50">
+        <route edges="west_in south_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.3" type="car" depart="34.00" departLane="1" departSpeed="13.0038" speedFactor="0.9362" arrival="88.00">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.3" type="car" depart="36.00" departLane="1" departSpeed="13.89" speedFactor="1.1582" arrival="89.00">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.5" type="car" depart="54.00" departLane="1" departSpeed="12.9358" speedFactor="0.9313" arrival="89.50">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.4" type="car" depart="44.00" departLane="1" departSpeed="12.3565" speedFactor="0.8896" arrival="90.00">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="W_S.2" type="car" depart="48.00" departLane="0" departSpeed="12.1204" speedFactor="0.8726" arrival="90.00">
+        <route edges="west_in south_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.5" type="car" depart="56.00" departLane="1" departSpeed="13.89" speedFactor="1.1786" arrival="90.50">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.4" type="car" depart="46.00" departLane="1" departSpeed="11.469" speedFactor="0.8257" arrival="91.50">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.6" type="car" depart="64.00" departLane="1" departSpeed="13.89" speedFactor="1.1718" arrival="93.50">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.6" type="car" depart="66.00" departLane="1" departSpeed="13.8178" speedFactor="0.9948" arrival="95.50">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="W_S.3" type="car" depart="68.00" departLane="0" departSpeed="13.5177" speedFactor="0.9732" arrival="98.00">
+        <route edges="west_in south_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.7" type="car" depart="76.00" departLane="1" departSpeed="13.89" speedFactor="1.0304" arrival="105.50">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.7" type="car" depart="74.00" departLane="1" departSpeed="12.5093" speedFactor="0.9006" arrival="106.50">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="E_W.8" type="car" depart="84.00" departLane="1" departSpeed="13.89" speedFactor="1.0434" arrival="113.50">
+        <route edges="east_in west_out"/>
+    </vehicle>
+
+    <vehicle id="W_E.8" type="car" depart="86.00" departLane="1" departSpeed="13.89" speedFactor="1.0880" arrival="115.50">
+        <route edges="west_in east_out"/>
+    </vehicle>
+
+    <vehicle id="W_S.4" type="car" depart="88.00" departLane="0" departSpeed="13.8539" speedFactor="0.9974" arrival="117.00">
+        <route edges="west_in south_out"/>
+    </vehicle>
+
+</routes>

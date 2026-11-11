@@ -1,0 +1,12 @@
+<tlLogics>
+    <tlLogic id="intersection_0" type="static" programID="0" offset="0">
+        <phase duration="40" state="GrrrrGrrrrGrrrrGrrrr"/> <!-- 南北直行绿 -->
+        <phase duration="3"  state="GyyyyGyyyyGrrrrGrrrr"/> <!-- 南北直行黄 -->
+        <phase duration="20" state="GrrrrGrrrrGrrrrGrrrr"/> <!-- 南北左转绿 -->
+        <phase duration="3"  state="GyyyyGyyyyGrrrrGrrrr"/> <!-- 南北左转黄 -->
+        <phase duration="40" state="GrrrrGrrrrGrrrrGrrrr"/> <!-- 东西直行绿 -->
+        <phase duration="3"  state="GrrrrGrrrrGyyyyGyyyy"/> <!-- 东西直行黄 -->
+        <phase duration="20" state="GrrrrGrrrrGrrrrGrrrr"/> <!-- 东西左转绿 -->
+        <phase duration="3"  state="GrrrrGrrrrGyyyyGyyyy"/> <!-- 东西左转黄 -->
+    </tlLogic>
+</tlLogics>

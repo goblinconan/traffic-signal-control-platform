@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/intersection/intersectionview.tsx","./src/hooks/usewebsocket.ts","./src/types/signal.ts"],"version":"5.9.3"}

@@ -1,0 +1,22 @@
+
+<tlLogics>
+    <tlLogic id="intersection_0" type="static" programID="0" offset="0">
+
+        <!-- 南北直行及右转 -->
+        <phase duration="40" state="GGGrrrrrrrGGGrrrrrrr"/>
+        <phase duration="3" state="GyyrrrrrrrGyyrrrrrrr"/>
+
+        <!-- 南北保护左转 -->
+        <phase duration="20" state="rrrGGrrrrrrrrGGrrrrr"/>
+        <phase duration="3" state="rrryyrrrrrrrryyrrrrr"/>
+
+        <!-- 东西直行及右转 -->
+        <phase duration="40" state="rrrrrGGGrrrrrrrGGGrr"/>
+        <phase duration="3" state="rrrrrGyyrrrrrrrGyyrr"/>
+
+        <!-- 东西保护左转 -->
+        <phase duration="20" state="rrrrrrrrGGrrrrrrrrGG"/>
+        <phase duration="3" state="rrrrrrrryyrrrrrrrryy"/>
+
+    </tlLogic>
+</tlLogics>
