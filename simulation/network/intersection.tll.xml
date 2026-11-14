@@ -1,22 +1,15 @@
-
-<tlLogics>
+﻿<tlLogics>
     <tlLogic id="intersection_0" type="static" programID="0" offset="0">
-
-        <!-- 南北直行及右转 -->
-        <phase duration="40" state="GGGrrrrrrrGGGrrrrrrr"/>
-        <phase duration="3" state="GyyrrrrrrrGyyrrrrrrr"/>
-
-        <!-- 南北保护左转 -->
-        <phase duration="20" state="rrrGGrrrrrrrrGGrrrrr"/>
-        <phase duration="3" state="rrryyrrrrrrrryyrrrrr"/>
-
-        <!-- 东西直行及右转 -->
-        <phase duration="40" state="rrrrrGGGrrrrrrrGGGrr"/>
-        <phase duration="3" state="rrrrrGyyrrrrrrrGyyrr"/>
-
-        <!-- 东西保护左转 -->
-        <phase duration="20" state="rrrrrrrrGGrrrrrrrrGG"/>
-        <phase duration="3" state="rrrrrrrryyrrrrrrrryy"/>
-
+        <!-- 受保护业务阶段：南北左转、南北直行、东西左转、东西直行。 -->
+        <!-- B0 四个右转 linkIndex（0、5、10、15）使用小写 g（让行绿灯）；实际让行安全性仍待轨迹与冲突验证。 -->
+        <phase duration="20" state="grrGGgrrrrgrrGGgrrrr"/>
+        <phase duration="3" state="grryygrrrrgrryygrrrr"/>
+        <phase duration="40" state="gGGrrgrrrrgGGrrgrrrr"/>
+        <phase duration="3" state="gyyrrgrrrrgyyrrgrrrr"/>
+        <phase duration="20" state="grrrrgrrGGgrrrrgrrGG"/>
+        <phase duration="3" state="grrrrgrryygrrrrgrryy"/>
+        <phase duration="40" state="grrrrgGGrrgrrrrgGGrr"/>
+        <phase duration="3" state="grrrrgyyrrgrrrrgyyrr"/>
     </tlLogic>
 </tlLogics>
+

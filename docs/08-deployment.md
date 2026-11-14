@@ -1,5 +1,7 @@
 # 部署手册
 
+> 本文记录当前开发环境准备方式。Docker 中 SUMO/TraCI 的最终部署拓扑仍待最小原型验证；本文中的命令必须在对应文件路径确认后再作为正式启动命令。
+
 ## 1. 开发环境（Windows 本机先跑通）
 
 ### 1.1 SUMO
@@ -8,48 +10,68 @@
 2. 设置系统变量 `SUMO_HOME=C:\Program Files (x86)\SUMO`，Path 加入 `%SUMO_HOME%\bin`。
 3. 验证：
 
-````powershell
+```powershell
 sumo --version
 # 预期输出类似：Eclipse SUMO sumo 1.28.0
 python -c "import os,sys; sys.path.append(os.path.join(os.environ['SUMO_HOME'],'tools')); import traci; print('traci ok')"
+```
 
 ### 1.2 后端
 
+以下命令示例假设后端依赖清单位于 `backend` 目录；执行前应核对项目实际文件路径：
+
 ```powershell
-cd D:\Projects\traffic-signal-control-platform
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+cd D:\Projects\traffic-signal-control-platform\backend
+python -m venv ..\.venv
+..\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
-````
+```
 
 ### 1.3 前端
 
-```bash
-cd frontend
+```powershell
+cd D:\Projects\traffic-signal-control-platform\frontend
 npm install
 npm run dev
 ```
 
 ## 2. Docker Compose
 
-```bash
+Docker Compose 当前用于验证平台服务容器化；SUMO/TraCI 是否在容器内运行尚未完成原型验证。不要把 `docker compose up -d` 的成功等同于 SUMO 仿真链路已经启动。
+
+```powershell
+cd D:\Projects\traffic-signal-control-platform
 docker compose build
 docker compose up -d
 docker compose logs -f backend
 ```
 
-当前 compose 中 `simulation` 服务先不启用，后端以“本机 SUMO + 容器后端”的混合方式运行。**不要假设 Windows 宿主机的 SUMO 能直接在 Linux 容器里被 import**。等验证完成后再决定：
+当前 compose 中 `simulation` 服务先不启用，后端与本机 SUMO 的混合运行方式仍需验证。**不要假设 Windows 宿主机的 SUMO 能直接在 Linux 容器里被 import。**
 
-- 方案 A：SUMO 装进 backend 镜像，headless 运行；
-- 方案 B：独立 simulation 容器，TraCI 走 TCP。
+待验证方案：
+
+- 方案 A：SUMO 安装进 backend 镜像并以 headless 方式运行。
+- 方案 B：使用独立 simulation 容器，通过 TCP 建立 TraCI 连接。
+
+最终方案以可重复运行的最小原型和 Docker 集成测试为准。
 
 ## 3. 停止
 
-```bash
+```powershell
+cd D:\Projects\traffic-signal-control-platform
 docker compose down
 ```
 
 ## 4. 环境变量
 
-见根目录 `.env.example`。
+见根目录 `.env.example`。不得将真实密钥或本机敏感配置提交到 Git。
+
+## 5. 部署验收边界
+
+- 本机 SUMO + FastAPI 的开发运行方式与 Docker 最终部署方式应分别记录和验收。
+- 若采用独立 simulation 容器，必须验证 TraCI TCP 连接、启动/停止、异常退出清理及网络可达性。
+- 若将 SUMO 安装进 backend 镜像，必须验证镜像内 SUMO 版本、Python `traci`/`sumolib` 导入和 headless 仿真。
+- 任何部署方式均须验证后端信号状态机、8 个目标阶段、WebSocket 状态推送和车辆数据链路；容器启动成功不等于业务验收通过。
+- 当前阶段顺序以南北左转、南北直行、东西左转、东西直行为准；部署配置不得继续沿用历史测试网络阶段顺序。
+

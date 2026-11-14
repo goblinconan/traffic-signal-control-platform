@@ -1,9 +1,14 @@
 
+/** 前后端共享的信号状态、配时和 SUMO 几何数据类型。 */
 export type PhaseId =
-  | "NS_STRAIGHT" | "NS_STRAIGHT_YELLOW"
-  | "NS_LEFT" | "NS_LEFT_YELLOW"
-  | "EW_STRAIGHT" | "EW_STRAIGHT_YELLOW"
-  | "EW_LEFT" | "EW_LEFT_YELLOW";
+  | "NS_LEFT"
+  | "NS_LEFT_YELLOW"
+  | "NS_STRAIGHT"
+  | "NS_STRAIGHT_YELLOW"
+  | "EW_LEFT"
+  | "EW_LEFT_YELLOW"
+  | "EW_STRAIGHT"
+  | "EW_STRAIGHT_YELLOW";
 
 export type LightState = "G" | "y" | "r";
 
@@ -42,13 +47,11 @@ export interface VehicleSnapshot {
   width: number;
 }
 
-/** SUMO 路网中的一个几何坐标点。 */
 export interface NetworkPoint {
   x: number;
   y: number;
 }
 
-/** SUMO 路网中的车道。 */
 export interface NetworkLane {
   id: string;
   index: number;
@@ -57,7 +60,6 @@ export interface NetworkLane {
   shape: NetworkPoint[];
 }
 
-/** SUMO 路网中的外部道路。 */
 export interface NetworkEdge {
   id: string;
   from: string;
@@ -66,7 +68,6 @@ export interface NetworkEdge {
   lanes: NetworkLane[];
 }
 
-/** SUMO 路口节点。 */
 export interface NetworkJunction {
   id: string;
   type: string;
@@ -75,14 +76,12 @@ export interface NetworkJunction {
   shape: NetworkPoint[];
 }
 
-/** SUMO 路口内部连接车道。 */
 export interface InternalLane {
   id: string;
   width: number;
   shape: NetworkPoint[];
 }
 
-/** SUMO 静态路网几何。 */
 export interface NetworkGeometry {
   junctions: NetworkJunction[];
   edges: NetworkEdge[];
@@ -99,6 +98,5 @@ export interface SimulationUpdate {
   simulation_status: string;
   signal: SignalSnapshot;
   vehicles: VehicleSnapshot[];
-  /** 首次 WebSocket 消息包含，后续动态消息不重复发送。 */
   network?: NetworkGeometry;
 }

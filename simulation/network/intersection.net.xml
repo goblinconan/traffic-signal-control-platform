@@ -136,14 +136,14 @@
     </edge>
 
     <tlLogic id="intersection_0" type="static" programID="0" offset="0">
-        <phase duration="40" state="GGGrrrrrrrGGGrrrrrrr"/>
-        <phase duration="3"  state="GyyrrrrrrrGyyrrrrrrr"/>
-        <phase duration="20" state="rrrGGrrrrrrrrGGrrrrr"/>
-        <phase duration="3"  state="rrryyrrrrrrrryyrrrrr"/>
-        <phase duration="40" state="rrrrrGGGrrrrrrrGGGrr"/>
-        <phase duration="3"  state="rrrrrGyyrrrrrrrGyyrr"/>
-        <phase duration="20" state="rrrrrrrrGGrrrrrrrrGG"/>
-        <phase duration="3"  state="rrrrrrrryyrrrrrrrryy"/>
+        <phase duration="20" state="grrGGgrrrrgrrGGgrrrr"/>
+        <phase duration="3" state="grryygrrrrgrryygrrrr"/>
+        <phase duration="40" state="gGGrrgrrrrgGGrrgrrrr"/>
+        <phase duration="3" state="gyyrrgrrrrgyyrrgrrrr"/>
+        <phase duration="20" state="grrrrgrrGGgrrrrgrrGG"/>
+        <phase duration="3" state="grrrrgrryygrrrrgrryy"/>
+        <phase duration="40" state="grrrrgGGrrgrrrrgGGrr"/>
+        <phase duration="3" state="grrrrgyyrrgrrrrgyyrr"/>
     </tlLogic>
 
     <junction id="e" type="priority" x="400.00" y="200.00" incLanes="east_out_0 east_out_1 east_out_2 east_out_3 east_out_4" intLanes=":e_0_0" shape="400.00,200.00 400.00,182.50 400.00,200.00">

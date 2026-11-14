@@ -1,30 +1,48 @@
-"""信号状态机：纯逻辑，不依赖 SUMO，便于单元测试。
-输入：TimingConfig、仿真当前时间、手动切换目标相位。
-输出：当前相位、剩余时间、灯色、倒计时可见性、下一相位。
+
+"""信号状态机：独立计算四类受保护阶段、黄灯和倒计时。
+输入：TimingConfig、仿真时间及可选手动切换目标。
+输出：当前阶段、剩余时间、灯色和倒计时可见性。
 依赖：models/signal.py。
 调用方：services/signal_service.py。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from app.models.signal import DirectionState, LightState, PhaseId, TimingConfig
 
-from app.models.signal import LightState, PhaseId, TimingConfig, DirectionState
 
-# 定义 8 个相位的固定循环顺序
-_PHASE_ORDER = [
-    PhaseId.NS_STRAIGHT,
-    PhaseId.NS_STRAIGHT_YELLOW,
+_PHASE_ORDER: tuple[PhaseId, ...] = (
     PhaseId.NS_LEFT,
     PhaseId.NS_LEFT_YELLOW,
-    PhaseId.EW_STRAIGHT,
-    PhaseId.EW_STRAIGHT_YELLOW,
+    PhaseId.NS_STRAIGHT,
+    PhaseId.NS_STRAIGHT_YELLOW,
     PhaseId.EW_LEFT,
     PhaseId.EW_LEFT_YELLOW,
-]
+    PhaseId.EW_STRAIGHT,
+    PhaseId.EW_STRAIGHT_YELLOW,
+)
+
+_YELLOW_PHASES = {
+    PhaseId.NS_LEFT_YELLOW,
+    PhaseId.NS_STRAIGHT_YELLOW,
+    PhaseId.EW_LEFT_YELLOW,
+    PhaseId.EW_STRAIGHT_YELLOW,
+}
+
+_GREEN_MOVEMENTS = {
+    PhaseId.NS_LEFT: "ns_left",
+    PhaseId.NS_STRAIGHT: "ns_straight",
+    PhaseId.EW_LEFT: "ew_left",
+    PhaseId.EW_STRAIGHT: "ew_straight",
+}
+
 
 class SignalController:
-    def __init__(self, timing: TimingConfig, start_phase: PhaseId = PhaseId.NS_STRAIGHT,
-                 start_time: float = 0.0) -> None:
+    def __init__(
+        self,
+        timing: TimingConfig,
+        start_phase: PhaseId = PhaseId.NS_LEFT,
+        start_time: float = 0.0,
+    ) -> None:
         self._timing = timing
         self._phase = start_phase
         self._started_at = start_time
@@ -38,28 +56,35 @@ class SignalController:
     def timing(self) -> TimingConfig:
         return self._timing
 
+    @property
+    def started_at(self) -> float:
+        return self._started_at
+
     def _get_duration(self, phase: PhaseId) -> float:
-        if phase == PhaseId.NS_STRAIGHT: return self._timing.ns_straight_green
-        if phase == PhaseId.NS_LEFT: return self._timing.ns_left_green
-        if phase == PhaseId.EW_STRAIGHT: return self._timing.ew_straight_green
-        if phase == PhaseId.EW_LEFT: return self._timing.ew_left_green
-        return self._timing.yellow # 黄灯时长
+        green_durations = {
+            PhaseId.NS_LEFT: self._timing.ns_left_green,
+            PhaseId.NS_STRAIGHT: self._timing.ns_straight_green,
+            PhaseId.EW_LEFT: self._timing.ew_left_green,
+            PhaseId.EW_STRAIGHT: self._timing.ew_straight_green,
+        }
+        return green_durations.get(phase, self._timing.yellow)
 
     def remaining(self, sim_time: float) -> float:
         return max(0.0, self._started_at + self._duration - sim_time)
 
     def next_phase(self) -> PhaseId:
-        idx = _PHASE_ORDER.index(self._phase)
-        return _PHASE_ORDER[(idx + 1) % len(_PHASE_ORDER)]
+        index = _PHASE_ORDER.index(self._phase)
+        return _PHASE_ORDER[(index + 1) % len(_PHASE_ORDER)]
 
     def apply_timing(self, new_timing: TimingConfig) -> None:
+        """仅在完整周期边界调用，保持当前阶段起始时间不变。"""
         self._timing = new_timing
+        self._duration = self._get_duration(self._phase)
 
     def advance_if_needed(self, sim_time: float) -> bool:
         if sim_time + 1e-9 < self._started_at + self._duration:
             return False
-        
-        # 切换到下一个相位
+
         self._phase = self.next_phase()
         self._started_at = sim_time
         self._duration = self._get_duration(self._phase)
@@ -75,59 +100,66 @@ class SignalController:
         self._duration = self._get_duration(self._phase)
         return True, "ok"
 
-    # 核心：生成给前端的 4 个方向灯色及倒计时
-    def get_direction_states(self, sim_time: float) -> tuple[DirectionState, DirectionState, DirectionState, DirectionState]:
+    def get_direction_states(
+        self, sim_time: float
+    ) -> tuple[DirectionState, DirectionState, DirectionState, DirectionState]:
         phase = self._phase
-        rem = self.remaining(sim_time)
-        t = self._timing
-        
-        ns_straight_g = (phase == PhaseId.NS_STRAIGHT)
-        ns_straight_y = (phase == PhaseId.NS_STRAIGHT_YELLOW)
-        ns_left_g = (phase == PhaseId.NS_LEFT)
-        ns_left_y = (phase == PhaseId.NS_LEFT_YELLOW)
+        remaining = self.remaining(sim_time)
+        timing = self._timing
 
-        ew_straight_g = (phase == PhaseId.EW_STRAIGHT)
-        ew_straight_y = (phase == PhaseId.EW_STRAIGHT_YELLOW)
-        ew_left_g = (phase == PhaseId.EW_LEFT)
-        ew_left_y = (phase == PhaseId.EW_LEFT_YELLOW)
+        active_movement = _GREEN_MOVEMENTS.get(phase)
+        yellow_movement = None
+        if phase in _YELLOW_PHASES:
+            yellow_movement = phase.value.removesuffix("_YELLOW").lower()
+            # Enum 命名与快照字段均采用 ns_left/ns_straight/ew_left/ew_straight。
+            yellow_movement = {
+                "ns_left": "ns_left",
+                "ns_straight": "ns_straight",
+                "ew_left": "ew_left",
+                "ew_straight": "ew_straight",
+            }[yellow_movement]
 
-        # 计算红灯剩余时间：从当前相位一直累加到该方向下一次绿灯亮起
-        def calc_red_time(target_phase: PhaseId) -> float:
-            if self._phase == target_phase:
+        def duration_for(candidate: PhaseId) -> float:
+            return self._get_duration(candidate)
+
+        def red_remaining(target_green: PhaseId) -> float:
+            if active_movement == _GREEN_MOVEMENTS[target_green]:
                 return 0.0
-            idx_curr = _PHASE_ORDER.index(self._phase)
-            idx_target = _PHASE_ORDER.index(target_phase)
-            total = rem
-            curr = idx_curr
-            while True:
-                curr = (curr + 1) % len(_PHASE_ORDER)
-                p = _PHASE_ORDER[curr]
-                if p == target_phase:
+            if yellow_movement == _GREEN_MOVEMENTS[target_green]:
+                return 0.0
+
+            total = remaining
+            index = _PHASE_ORDER.index(phase)
+            for offset in range(1, len(_PHASE_ORDER) + 1):
+                candidate = _PHASE_ORDER[(index + offset) % len(_PHASE_ORDER)]
+                if candidate == target_green:
                     break
-                if p in (PhaseId.NS_STRAIGHT_YELLOW, PhaseId.NS_LEFT_YELLOW, PhaseId.EW_STRAIGHT_YELLOW, PhaseId.EW_LEFT_YELLOW):
-                    total += t.yellow
-                elif p == PhaseId.NS_STRAIGHT: total += t.ns_straight_green
-                elif p == PhaseId.NS_LEFT: total += t.ns_left_green
-                elif p == PhaseId.EW_STRAIGHT: total += t.ew_straight_green
-                elif p == PhaseId.EW_LEFT: total += t.ew_left_green
+                total += duration_for(candidate)
             return total
 
-        def calc(is_active: bool, is_yellow: bool, red_time: float) -> DirectionState:
-            if is_active:
+        def make_state(movement: str, target_green: PhaseId) -> DirectionState:
+            if active_movement == movement:
                 return DirectionState(
-                    state=LightState.YELLOW if is_yellow else LightState.GREEN,
-                    remaining=round(rem, 2),
-                    countdown_visible=True if is_yellow else (rem <= 8.0)
+                    state=LightState.GREEN,
+                    remaining=round(remaining, 2),
+                    countdown_visible=remaining <= 8.0,
                 )
+            if yellow_movement == movement:
+                return DirectionState(
+                    state=LightState.YELLOW,
+                    remaining=round(remaining, 2),
+                    countdown_visible=True,
+                )
+            red_time = red_remaining(target_green)
             return DirectionState(
-                state=LightState.RED, 
-                remaining=round(red_time, 2), 
-                countdown_visible=(red_time <= 10.0)
+                state=LightState.RED,
+                remaining=round(red_time, 2),
+                countdown_visible=red_time <= 10.0,
             )
 
-        ns_s = calc(ns_straight_g or ns_straight_y, ns_straight_y, calc_red_time(PhaseId.NS_STRAIGHT))
-        ns_l = calc(ns_left_g or ns_left_y, ns_left_y, calc_red_time(PhaseId.NS_LEFT))
-        ew_s = calc(ew_straight_g or ew_straight_y, ew_straight_y, calc_red_time(PhaseId.EW_STRAIGHT))
-        ew_l = calc(ew_left_g or ew_left_y, ew_left_y, calc_red_time(PhaseId.EW_LEFT))
-
-        return ns_s, ns_l, ew_s, ew_l
+        return (
+            make_state("ns_straight", PhaseId.NS_STRAIGHT),
+            make_state("ns_left", PhaseId.NS_LEFT),
+            make_state("ew_straight", PhaseId.EW_STRAIGHT),
+            make_state("ew_left", PhaseId.EW_LEFT),
+        )
