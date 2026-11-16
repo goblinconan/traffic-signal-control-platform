@@ -10,13 +10,22 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.models.signal import PhaseId, SignalSnapshot, TimingConfig
+from app.models.signal import ControlMode, PhaseId, SignalSnapshot, TimingConfig
+from app.simulation.lifecycle import LifecycleError
 
 router = APIRouter(prefix="/signals", tags=["signals"])
 
 
 class PhaseSwitchRequest(BaseModel):
     target_phase: PhaseId
+
+
+class ControlEnabledRequest(BaseModel):
+    enabled: bool
+
+
+class ControlModeRequest(BaseModel):
+    mode: ControlMode
 
 
 def _svc(request: Request):
@@ -29,6 +38,50 @@ async def get_state(tls_id: str, request: Request) -> SignalSnapshot:
     if tls_id != svc.settings.tls_id:
         raise HTTPException(404, "unknown tls_id")
     return svc.snapshot()
+
+
+@router.get("/{tls_id}/control")
+async def get_control(tls_id: str, request: Request) -> dict:
+    svc = _svc(request)
+    if tls_id != svc.settings.tls_id:
+        raise HTTPException(404, "unknown tls_id")
+    return svc.control_state()
+
+
+@router.put("/{tls_id}/control/enabled")
+async def put_control_enabled(
+    tls_id: str, body: ControlEnabledRequest, request: Request
+) -> dict:
+    svc = _svc(request)
+    if tls_id != svc.settings.tls_id:
+        raise HTTPException(404, "unknown tls_id")
+    lifecycle = request.app.state.lifecycle
+    try:
+        return await lifecycle.run_control_action(
+            lambda: svc.request_control_enabled(body.enabled)
+        )
+    except LifecycleError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.put("/{tls_id}/control/mode")
+async def put_control_mode(
+    tls_id: str, body: ControlModeRequest, request: Request
+) -> dict:
+    svc = _svc(request)
+    if tls_id != svc.settings.tls_id:
+        raise HTTPException(404, "unknown tls_id")
+    lifecycle = request.app.state.lifecycle
+    try:
+        return await lifecycle.run_control_action(
+            lambda: svc.request_control_mode(body.mode)
+        )
+    except LifecycleError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.get("/{tls_id}/timing")
@@ -56,10 +109,13 @@ async def put_timing(
     svc = _svc(request)
     if tls_id != svc.settings.tls_id:
         raise HTTPException(404, "unknown tls_id")
+    lifecycle = request.app.state.lifecycle
     try:
-        pending = svc.submit_timing(body)
+        pending = await lifecycle.run_control_action(lambda: svc.submit_timing(body))
+    except LifecycleError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise HTTPException(409, str(exc)) from exc
     return {
         "accepted": True,
         "effective": "next_complete_cycle",
@@ -74,7 +130,13 @@ async def switch_phase(
     svc = _svc(request)
     if tls_id != svc.settings.tls_id:
         raise HTTPException(404, "unknown tls_id")
-    ok, reason = svc.manual_switch(body.target_phase)
+    lifecycle = request.app.state.lifecycle
+    try:
+        ok, reason = await lifecycle.run_control_action(
+            lambda: svc.manual_switch(body.target_phase)
+        )
+    except LifecycleError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
     if not ok:
         raise HTTPException(409, reason)
     return {"accepted": True, "reason": reason}

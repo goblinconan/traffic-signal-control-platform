@@ -319,6 +319,20 @@ class SimulationLifecycle:
             log.info("simulation lifecycle entered STOPPED")
             return self.snapshot()
 
+    async def run_control_action(self, function: Callable[[], Any]) -> Any:
+        """在生命周期锁内执行信号控制操作，避免与 TraCI 步进并发。"""
+        async with self._operation_lock:
+            if self._closing:
+                raise LifecycleError("应用正在关闭，拒绝信号控制操作", 503)
+            if self._status != SimulationStatus.RUNNING:
+                raise LifecycleError("只有仿真 RUNNING 时才能操作信号控制", 409)
+            try:
+                return await _run_blocking_safely(function)
+            except LifecycleError:
+                raise
+            except Exception as exc:
+                raise LifecycleError(f"信号控制操作失败：{exc}", 409) from exc
+
     async def step_once(self) -> None:
         async with self._operation_lock:
             if (

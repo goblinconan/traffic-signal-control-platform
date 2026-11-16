@@ -8,7 +8,21 @@ export type PhaseId =
   | "EW_LEFT"
   | "EW_LEFT_YELLOW"
   | "EW_STRAIGHT"
-  | "EW_STRAIGHT_YELLOW";
+  | "EW_STRAIGHT_YELLOW"
+  | "ALL_RED";
+
+export type ControlMode = "AUTO" | "MANUAL";
+
+export type ControlStatus = "ENABLED" | "DISABLING" | "DISABLED";
+
+export interface SignalControlState {
+  tls_id: string;
+  control_status: ControlStatus;
+  control_mode: ControlMode;
+  phase_id: PhaseId;
+  pending_mode: ControlMode | null;
+  pending_manual_phase: PhaseId | null;
+}
 
 export type LightState = "G" | "y" | "r";
 
@@ -29,6 +43,8 @@ export interface DirectionState {
 export interface SignalSnapshot {
   tls_id: string;
   phase_id: PhaseId;
+  control_mode: ControlMode;
+  control_status: ControlStatus;
   ns_straight: DirectionState;
   ns_left: DirectionState;
   ew_straight: DirectionState;

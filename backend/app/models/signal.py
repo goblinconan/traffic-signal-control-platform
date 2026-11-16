@@ -23,6 +23,18 @@ class PhaseId(str, Enum):
     EW_LEFT_YELLOW = "EW_LEFT_YELLOW"
     EW_STRAIGHT = "EW_STRAIGHT"
     EW_STRAIGHT_YELLOW = "EW_STRAIGHT_YELLOW"
+    ALL_RED = "ALL_RED"
+
+
+class ControlMode(str, Enum):
+    AUTO = "AUTO"
+    MANUAL = "MANUAL"
+
+
+class ControlStatus(str, Enum):
+    ENABLED = "ENABLED"
+    DISABLING = "DISABLING"
+    DISABLED = "DISABLED"
 
 
 class LightState(str, Enum):
@@ -97,6 +109,8 @@ class DirectionState(BaseModel):
 class SignalSnapshot(BaseModel):
     tls_id: str
     phase_id: PhaseId
+    control_mode: ControlMode = ControlMode.AUTO
+    control_status: ControlStatus = ControlStatus.ENABLED
     ns_straight: DirectionState
     ns_left: DirectionState
     ew_straight: DirectionState

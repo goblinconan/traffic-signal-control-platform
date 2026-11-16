@@ -597,7 +597,7 @@ sequenceDiagram
   "signal_control": {
     "enabled": true,
     "mode": "AUTO",
-    "phase_id": "NS_LEFT_GREEN",
+    "phase_id": "NS_LEFT",
     "phase_index": 0,
     "remaining": 20.0,
     "groups": [
@@ -977,7 +977,7 @@ IntersectionViewport
 **动态仿真数据**
 
 - simulation_status、simulation_time。
-- signal_control_enabled、control_mode。
+- control_status（ENABLED/DISABLING/DISABLED）、control_mode（AUTO/MANUAL）。
 - 当前 phase、阶段剩余时间、信号组灯色。
 - 车辆 ID、位置、角度、速度、长宽及必要车辆类别。
 - 数据序号或仿真 tick，用于丢弃过期消息。
@@ -991,14 +991,15 @@ IntersectionViewport
 ```json
 {
   "simulation_status": "RUNNING",
-  "signal_control_enabled": true,
-  "control_mode": "AUTO"
+  "control_status": "ENABLED",
+  "control_mode": "AUTO",
+  "phase_id": "NS_LEFT"
 }
 ```
 
 该结构仅为目标模型示例。仿真生命周期由 SimulationService 管理；信号控制启停与模式由 SignalService/控制域管理；相位推进仍由后端状态机负责。
 
-控制域必须有明确的状态转换校验。特别是 DISABLED 时 SUMO 灯色如何处置、MANUAL 模式无新命令时如何推进，属于待确认安全策略，见 `docs/decisions/ADR-001-control-mode-and-disable-policy.md`。
+控制域必须有明确的状态转换校验。B2 已按 `docs/ADR-014-control-mode-and-disable-policy.md` 固化：DISABLED 请求完成当前绿灯及完整黄灯后将全部 controlled links 置红，SUMO 继续运行；MANUAL 模式切入后进入并保持全红，直到收到合法人工阶段请求。`ALL_RED` 是控制域保持状态，不计入八阶段周期。
 
 ## 21. 控制请求处理流程
 

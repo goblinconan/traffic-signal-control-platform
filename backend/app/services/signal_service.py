@@ -12,7 +12,9 @@ from dataclasses import dataclass, field
 
 from app.controllers.signal_controller import SignalController
 from app.core.config import Settings
-from app.models.signal import PhaseId, SignalSnapshot, TimingConfig
+from app.models.signal import (
+    ControlMode, ControlStatus, PhaseId, SignalSnapshot, TimingConfig,
+)
 from app.services.timing_service import TimingService
 from app.simulation.sumo_runner import SumoRunner
 
@@ -27,6 +29,10 @@ class SignalService:
     controller: SignalController
     _links: list[list[tuple[str, str, str]]] = field(default_factory=list)
     _state_string: str = ""
+    control_mode: ControlMode = ControlMode.AUTO
+    control_status: ControlStatus = ControlStatus.ENABLED
+    _pending_mode: ControlMode | None = None
+    _pending_manual_phase: PhaseId | None = None
 
     @classmethod
     def create(cls, settings: Settings, runner: SumoRunner) -> "SignalService":
@@ -43,6 +49,12 @@ class SignalService:
         return cls(settings, runner, timing, controller)
 
     def on_started(self) -> None:
+        # 每次新仿真均从确定的 AUTO/ENABLED 初始状态开始，避免跨运行污染。
+        self.control_mode = ControlMode.AUTO
+        self.control_status = ControlStatus.ENABLED
+        self._pending_mode = None
+        self._pending_manual_phase = None
+        self.controller.resume_auto(self.runner.simulation_time())
         self._links = self.runner.controlled_links(self.settings.tls_id)
         if not self._links:
             raise RuntimeError("SUMO 未返回任何 traffic-light controlled link")
@@ -87,6 +99,8 @@ class SignalService:
 
     def _state_for_movement(self, axis: str, movement: str) -> str:
         phase = self.controller.phase_id
+        if phase == PhaseId.ALL_RED:
+            return "r"
         if movement == "right":
             # 当前 SUMO 冲突矩阵中右转连接无冲突，使用让行绿灯。
             # 小写 g 不代表受保护通行，后续仍需验证车辆轨迹和让行行为。
@@ -158,6 +172,24 @@ class SignalService:
                 self.controller.apply_timing(promoted)
                 log.info("timing promoted at cycle boundary: %s", promoted)
 
+        if self.controller.is_all_red:
+            if self.control_status == ControlStatus.DISABLING:
+                self.control_status = ControlStatus.DISABLED
+                self._pending_mode = None
+                self._pending_manual_phase = None
+                log.info("signal control entered DISABLED after safe all-red")
+            elif self._pending_mode is not None:
+                self.control_mode = self._pending_mode
+                self._pending_mode = None
+                if self.control_mode == ControlMode.AUTO and self.control_status == ControlStatus.ENABLED:
+                    self.controller.resume_auto(sim_time)
+                log.info("signal control mode changed to %s at all-red", self.control_mode.value)
+            elif self._pending_manual_phase is not None and self.control_status == ControlStatus.ENABLED and self.control_mode == ControlMode.MANUAL:
+                target = self._pending_manual_phase
+                self._pending_manual_phase = None
+                self.controller.start_phase(target, sim_time)
+                log.info("manual phase started after all-red: %s", target.value)
+
         self._sync_sumo()
         return self.snapshot(sim_time)
 
@@ -169,6 +201,8 @@ class SignalService:
         return SignalSnapshot(
             tls_id=self.settings.tls_id,
             phase_id=self.controller.phase_id,
+            control_mode=self.control_mode,
+            control_status=self.control_status,
             ns_straight=ns_s,
             ns_left=ns_l,
             ew_straight=ew_s,
@@ -177,11 +211,97 @@ class SignalService:
         )
 
     def submit_timing(self, candidate: TimingConfig) -> TimingConfig:
+        if self.control_status != ControlStatus.ENABLED:
+            raise ValueError("信号控制未启用，拒绝配时控制命令")
         return self.timing.submit(candidate)
 
-    def manual_switch(self, target: PhaseId) -> tuple[bool, str]:
+    def request_control_enabled(self, enabled: bool) -> dict:
         sim_time = self.runner.simulation_time()
-        ok, reason = self.controller.manual_switch(target, sim_time)
-        if ok:
+        if enabled:
+            if self.control_status == ControlStatus.ENABLED:
+                return self.control_state()
+            if self.control_status == ControlStatus.DISABLING:
+                raise ValueError("控制正在执行安全停用过渡，暂不能重新启用")
+            self.control_status = ControlStatus.ENABLED
+            if self.control_mode == ControlMode.AUTO:
+                self.controller.resume_auto(sim_time)
             self._sync_sumo()
-        return ok, reason
+            return self.control_state()
+
+        if self.control_status == ControlStatus.DISABLED:
+            return self.control_state()
+        if self.control_status == ControlStatus.DISABLING:
+            return self.control_state()
+
+        self.control_status = ControlStatus.DISABLING
+        self._pending_mode = None
+        self._pending_manual_phase = None
+        self.controller.request_all_red()
+        # 已处于全红时可立即完成停用，不等待下一次仿真步。
+        if self.controller.is_all_red:
+            self.control_status = ControlStatus.DISABLED
+        self._sync_sumo()
+        return self.control_state()
+
+    def request_control_mode(self, mode: ControlMode) -> dict:
+        if self.control_status == ControlStatus.DISABLING:
+            raise ValueError("控制正在执行安全停用过渡，暂不能切换模式")
+        if mode == self.control_mode and self._pending_mode is None:
+            return self.control_state()
+
+        sim_time = self.runner.simulation_time()
+        if mode != self.control_mode:
+            # 操作员显式切换控制模式时，撤销尚未执行的旧模式人工目标。
+            self._pending_manual_phase = None
+        if mode == ControlMode.MANUAL:
+            if self.controller.is_all_red:
+                self.control_mode = ControlMode.MANUAL
+                self._pending_mode = None
+            else:
+                self._pending_mode = ControlMode.MANUAL
+                self.controller.request_all_red()
+        else:
+            if self.controller.is_all_red:
+                self._pending_mode = None
+                self.control_mode = ControlMode.AUTO
+                if self.control_status == ControlStatus.ENABLED:
+                    self.controller.resume_auto(sim_time)
+            else:
+                self._pending_mode = ControlMode.AUTO
+                self.controller.request_all_red()
+        self._sync_sumo()
+        return self.control_state()
+
+    def control_state(self) -> dict:
+        return {
+            "tls_id": self.settings.tls_id,
+            "control_status": self.control_status.value,
+            "control_mode": self.control_mode.value,
+            "phase_id": self.controller.phase_id.value,
+            "pending_mode": self._pending_mode.value if self._pending_mode else None,
+            "pending_manual_phase": self._pending_manual_phase.value if self._pending_manual_phase else None,
+        }
+
+    def manual_switch(self, target: PhaseId) -> tuple[bool, str]:
+        if self.control_status != ControlStatus.ENABLED:
+            return False, "control_disabled"
+        if self.control_mode != ControlMode.MANUAL:
+            return False, "manual_mode_required"
+        if target not in {
+            PhaseId.NS_LEFT, PhaseId.NS_STRAIGHT,
+            PhaseId.EW_LEFT, PhaseId.EW_STRAIGHT,
+        }:
+            return False, "target_must_be_protected_green_phase"
+        if self._pending_manual_phase is not None:
+            return False, "manual_transition_pending"
+
+        sim_time = self.runner.simulation_time()
+        if self.controller.is_all_red:
+            self.controller.start_phase(target, sim_time)
+            self._sync_sumo()
+            return True, "started_from_all_red"
+
+        self._pending_manual_phase = target
+        self.controller.request_all_red()
+        self._sync_sumo()
+        return True, "accepted_after_safe_all_red"

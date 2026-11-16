@@ -124,11 +124,14 @@ links = traci.trafficlight.getControlledLinks(tls_id)
 ## 9. AUTO/MANUAL 与控制启停
 
 - AUTO：后端状态机按八个 SUMO 阶段及配时自动推进。
-- MANUAL：操作员提交目标业务阶段，后端验证并在安全过渡后执行。
-- 手动命令不能直接设置任意 SUMO 状态字符串。
-- 控制 ENABLED/DISABLED 与 SUMO 仿真 RUNNING/STOPPED 分离。
-- DISABLED 时禁止接受新的相位控制命令。
-- DISABLED 后 SUMO 信号灯应采取何种状态、MANUAL 无新请求时如何运行，必须按 `ADR-001` 明确后再编码。
+- MANUAL：切入时当前绿灯完成原定时长并执行完整黄灯，随后进入全红；无人工请求时持续全红。
+- 手动命令不能直接设置任意 SUMO 状态字符串；合法业务阶段请求由后端校验，并在全红安全边界启动。
+- 控制 ENABLED/DISABLING/DISABLED 与 SUMO 仿真 RUNNING/STOPPED 分离。
+- DISABLED 请求后立即拒绝新的控制命令；当前绿灯及完整黄灯结束后，所有 controlled links（包括原小写 `g` 右转 link）置为红灯。
+- DISABLED 后 SUMO 继续运行，信号控制状态机保持全红，不自动推进。
+- 重新启用时 AUTO 从 NS_LEFT 恢复；MANUAL 继续全红等待人工请求。
+- 新一轮 SUMO 启动时重置控制域为 ENABLED/AUTO。
+- 以上行为按 `docs/ADR-014-control-mode-and-disable-policy.md` 执行。
 
 ## 10. 网络几何与二维/三维可视化
 

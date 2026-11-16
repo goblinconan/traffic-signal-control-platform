@@ -78,7 +78,7 @@ SUMO 信号字符约定：
 ```json
 {
   "tls_id": "intersection_0",
-  "phase_id": "NS_LEFT_GREEN",
+  "phase_id": "NS_LEFT",
   "phase_index": 0,
   "remaining": 20.0,
   "countdown_visible": false,
@@ -133,10 +133,12 @@ SUMO 信号字符约定：
 
 ```json
 {
-  "enabled": true,
-  "mode": "AUTO",
-  "simulation_status": "RUNNING",
-  "phase_id": "NS_STRAIGHT_GREEN"
+  "tls_id": "intersection_0",
+  "control_status": "ENABLED",
+  "control_mode": "AUTO",
+  "phase_id": "NS_LEFT",
+  "pending_mode": null,
+  "pending_manual_phase": null
 }
 ```
 
@@ -148,7 +150,7 @@ SUMO 信号字符约定：
 { "enabled": false }
 ```
 
-用于启用/停用信号控制。停用后的 SUMO 灯色处置策略尚由 `ADR-001` 管理；在该策略未确认前，不得实现未经确认的默认灯色行为。
+用于启用/停用信号控制。响应 `control_status` 为 `ENABLED`、`DISABLING` 或 `DISABLED`。停用请求立即锁定新的控制命令；服务在当前绿灯和完整黄灯结束后将全部 controlled links（含右转）置红，再报告 `DISABLED`。SUMO 保持运行。仅在仿真 `RUNNING` 时接受控制操作，否则返回 HTTP 409。
 
 ### PUT `/api/signals/{tls_id}/control/mode`
 
@@ -158,9 +160,11 @@ SUMO 信号字符约定：
 { "mode": "MANUAL" }
 ```
 
-允许值：`AUTO`、`MANUAL`。模式切换必须校验仿真状态和当前阶段，并在安全边界完成；不得导致正在执行的黄灯被截断。
+允许值：`AUTO`、`MANUAL`。AUTO→MANUAL 必须完成当前绿灯及完整黄灯后进入全红，再确认模式切换；MANUAL 无请求时持续全红。MANUAL→AUTO 从全红安全状态恢复自动循环。切换不得截断正在执行的绿灯或黄灯。控制状态为 DISABLING 时返回 HTTP 409。
 
-以上控制接口为目标接口，当前实现状态待代码和接口测试验证。
+控制状态与信号快照字段：`control_mode`、`control_status`。`phase_id` 除八个业务绿/黄灯阶段外，另允许 `ALL_RED`，该状态不是周期配时阶段，不计入原八阶段周期。
+
+以上控制接口已在 B2 后端实现；接口契约与自动化测试以当前代码和 `docs/10-b2-control-mode-and-acceptance.md` 为准。
 
 ## 5. 配时查询与修改
 
@@ -219,7 +223,7 @@ SUMO 信号字符约定：
 请求：
 
 ```json
-{ "target_phase": "EW_STRAIGHT_GREEN" }
+{ "target_phase": "EW_STRAIGHT" }
 ```
 
 响应示例：
@@ -239,7 +243,7 @@ SUMO 信号字符约定：
 - 不允许跳过或缩短当前黄灯阶段。
 - 不允许直接下发任意 SUMO 灯色字符串。
 - 完整安全过渡由后端状态机决定。
-- MANUAL 模式下无新请求时的行为，按 `ADR-001` 确认后实现。
+- MANUAL 模式无新请求时持续保持全红，按 `ADR-014` 执行。
 
 ## 7. WebSocket
 
@@ -257,7 +261,7 @@ SUMO 信号字符约定：
   "signal_control": {
     "enabled": true,
     "mode": "AUTO",
-    "phase_id": "NS_LEFT_GREEN",
+    "phase_id": "NS_LEFT",
     "phase_index": 0,
     "remaining": 20.0,
     "countdown_visible": false,

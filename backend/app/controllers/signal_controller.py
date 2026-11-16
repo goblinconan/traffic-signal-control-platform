@@ -47,6 +47,7 @@ class SignalController:
         self._phase = start_phase
         self._started_at = start_time
         self._duration = self._get_duration(start_phase)
+        self._all_red_requested = False
 
     @property
     def phase_id(self) -> PhaseId:
@@ -60,7 +61,13 @@ class SignalController:
     def started_at(self) -> float:
         return self._started_at
 
+    @property
+    def is_all_red(self) -> bool:
+        return self._phase == PhaseId.ALL_RED
+
     def _get_duration(self, phase: PhaseId) -> float:
+        if phase == PhaseId.ALL_RED:
+            return 0.0
         green_durations = {
             PhaseId.NS_LEFT: self._timing.ns_left_green,
             PhaseId.NS_STRAIGHT: self._timing.ns_straight_green,
@@ -73,6 +80,8 @@ class SignalController:
         return max(0.0, self._started_at + self._duration - sim_time)
 
     def next_phase(self) -> PhaseId:
+        if self._phase == PhaseId.ALL_RED:
+            return PhaseId.NS_LEFT
         index = _PHASE_ORDER.index(self._phase)
         return _PHASE_ORDER[(index + 1) % len(_PHASE_ORDER)]
 
@@ -81,9 +90,48 @@ class SignalController:
         self._timing = new_timing
         self._duration = self._get_duration(self._phase)
 
+    def request_all_red(self) -> None:
+        """请求在当前绿灯及其完整黄灯结束后进入全红。"""
+        self._all_red_requested = True
+
+    def resume_auto(self, sim_time: float) -> None:
+        """从全红安全状态恢复自动循环。"""
+        self._all_red_requested = False
+        self._phase = PhaseId.NS_LEFT
+        self._started_at = sim_time
+        self._duration = self._get_duration(self._phase)
+
+    def start_phase(self, phase: PhaseId, sim_time: float) -> None:
+        """从全红状态启动一个受保护绿灯业务阶段。"""
+        if not isinstance(phase, PhaseId) or phase not in _GREEN_MOVEMENTS:
+            phase_name = getattr(phase, "value", phase)
+            raise ValueError(f"目标必须是受保护绿灯业务阶段: {phase_name}")
+
+        self._all_red_requested = False
+        self._phase = phase
+        self._started_at = sim_time
+        self._duration = self._get_duration(phase)
+
+    def hold_all_red(self, sim_time: float) -> None:
+        self._all_red_requested = True
+        self._phase = PhaseId.ALL_RED
+        self._started_at = sim_time
+        self._duration = 0.0
+
     def advance_if_needed(self, sim_time: float) -> bool:
+        if self._phase == PhaseId.ALL_RED:
+            return False
         if sim_time + 1e-9 < self._started_at + self._duration:
             return False
+
+        if self._all_red_requested:
+            if self._phase in _YELLOW_PHASES:
+                self.hold_all_red(sim_time)
+            else:
+                self._phase = self.next_phase()
+                self._started_at = sim_time
+                self._duration = self._get_duration(self._phase)
+            return True
 
         self._phase = self.next_phase()
         self._started_at = sim_time
@@ -91,20 +139,26 @@ class SignalController:
         return True
 
     def manual_switch(self, target: PhaseId, sim_time: float) -> tuple[bool, str]:
+        """仅允许从 ALL_RED 启动业务绿灯，禁止低层接口截断当前阶段。"""
         if target == self._phase:
             return True, "already_in_phase"
-        if target != self.next_phase():
-            return False, f"illegal_transition:{self._phase.value}->{target.value}"
-        self._phase = target
-        self._started_at = sim_time
-        self._duration = self._get_duration(self._phase)
-        return True, "ok"
+        if self._phase != PhaseId.ALL_RED:
+            return False, "safe_all_red_required"
+        if target not in _GREEN_MOVEMENTS:
+            return False, f"invalid_manual_target:{target.value}"
+        self.start_phase(target, sim_time)
+        return True, "started_from_all_red"
 
     def get_direction_states(
         self, sim_time: float
     ) -> tuple[DirectionState, DirectionState, DirectionState, DirectionState]:
         phase = self._phase
         remaining = self.remaining(sim_time)
+        if phase == PhaseId.ALL_RED:
+            red = DirectionState(
+                state=LightState.RED, remaining=0.0, countdown_visible=False
+            )
+            return red.model_copy(), red.model_copy(), red.model_copy(), red.model_copy()
         timing = self._timing
 
         active_movement = _GREEN_MOVEMENTS.get(phase)

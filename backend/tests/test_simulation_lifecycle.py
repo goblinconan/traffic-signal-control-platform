@@ -239,3 +239,138 @@ def test_health_refresh_detects_broken_traci_query():
         assert snapshot.sumo_connected is False
 
     run(scenario())
+
+
+def test_control_action_requires_running_and_serializes_with_step():
+    import threading
+
+    runner = FakeRunner()
+    service = FakeSignalService()
+    lifecycle = SimulationLifecycle(runner, service)
+    entered = threading.Event()
+    release = threading.Event()
+
+    async def scenario():
+        with pytest.raises(LifecycleError) as error:
+            await lifecycle.run_control_action(lambda: "should-not-run")
+        assert error.value.status_code == 409
+
+        await lifecycle.start()
+
+        def blocking_control():
+            entered.set()
+            assert release.wait(timeout=3)
+            return "control-complete"
+
+        control_task = asyncio.create_task(
+            lifecycle.run_control_action(blocking_control)
+        )
+        assert await asyncio.to_thread(entered.wait, 1)
+
+        step_task = asyncio.create_task(lifecycle.step_once())
+        await asyncio.sleep(0.05)
+        assert service.step_calls == 0
+
+        release.set()
+        assert await control_task == "control-complete"
+        await step_task
+        assert service.step_calls == 1
+
+    run(scenario())
+
+
+def test_shutdown_waits_for_inflight_control_action():
+    import threading
+
+    runner = FakeRunner()
+    lifecycle = SimulationLifecycle(runner, FakeSignalService())
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    async def scenario():
+        await lifecycle.start()
+
+        def blocking_control():
+            entered.set()
+            assert release.wait(timeout=3)
+            return "control-complete"
+
+        control_task = asyncio.create_task(
+            lifecycle.run_control_action(blocking_control)
+        )
+
+        assert await asyncio.to_thread(entered.wait, 1)
+
+        shutdown_task = asyncio.create_task(lifecycle.shutdown())
+
+        await asyncio.sleep(0.05)
+        assert runner.stop_calls == 0
+
+        release.set()
+
+        assert await control_task == "control-complete"
+        await shutdown_task
+
+        assert runner.stop_calls == 1
+        assert lifecycle.status == SimulationStatus.STOPPED
+
+    run(scenario())
+
+def test_cancelled_control_action_keeps_lock_until_thread_finishes():
+    import threading
+
+    runner = FakeRunner()
+    service = FakeSignalService()
+    lifecycle = SimulationLifecycle(runner, service)
+
+    entered = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+
+    async def scenario():
+        await lifecycle.start()
+
+        def blocking_control():
+            entered.set()
+            try:
+                assert release.wait(timeout=5)
+                return "control-complete"
+            finally:
+                finished.set()
+
+        control_task = asyncio.create_task(
+            lifecycle.run_control_action(blocking_control)
+        )
+
+        assert await asyncio.to_thread(entered.wait, 1)
+
+        # 取消调用协程，但后台线程不会因此自动停止。
+        control_task.cancel()
+
+        assert not finished.is_set()
+
+        step_task = asyncio.create_task(lifecycle.step_once())
+
+        await asyncio.sleep(0.05)
+
+        # 后台线程尚未结束，步进操作必须继续等待生命周期锁。
+        assert not control_task.done()
+        assert not finished.is_set()
+        assert service.step_calls == 0
+
+        # 释放后台线程。
+        release.set()
+
+        # 后台线程结束后，控制协程才应传播取消异常。
+        with pytest.raises(asyncio.CancelledError):
+            await control_task
+
+        await step_task
+
+        assert finished.is_set()
+        assert service.step_calls == 1
+
+        await lifecycle.stop()
+
+    run(scenario())

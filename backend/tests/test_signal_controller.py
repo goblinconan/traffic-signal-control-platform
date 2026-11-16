@@ -1,3 +1,7 @@
+import pytest
+
+from app.controllers.signal_controller import SignalController
+from app.models.signal import LightState, PhaseId, TimingConfig
 
 from app.controllers.signal_controller import SignalController
 from app.models.signal import LightState, PhaseId, TimingConfig
@@ -85,3 +89,60 @@ def test_timing_update_changes_current_duration_without_resetting_start():
 
     assert controller.started_at == 0.0
     assert controller.remaining(0.0) == 25.0
+
+
+def test_all_red_hold_is_terminal_until_explicit_resume():
+    controller = make_controller()
+    controller.request_all_red()
+
+    assert controller.advance_if_needed(20.0) is True
+    assert controller.phase_id == PhaseId.NS_LEFT_YELLOW
+    assert controller.advance_if_needed(23.0) is True
+    assert controller.phase_id == PhaseId.ALL_RED
+    assert controller.advance_if_needed(100.0) is False
+
+    states = controller.get_direction_states(100.0)
+    assert all(state.state == LightState.RED for state in states)
+
+    controller.resume_auto(100.0)
+    assert controller.phase_id == PhaseId.NS_LEFT
+    assert controller.remaining(100.0) == 20.0
+
+
+def test_low_level_manual_switch_cannot_interrupt_active_green_or_yellow():
+    controller = make_controller()
+    ok, reason = controller.manual_switch(PhaseId.NS_STRAIGHT, 1.0)
+    assert ok is False
+    assert reason == "safe_all_red_required"
+    assert controller.phase_id == PhaseId.NS_LEFT
+
+    controller.hold_all_red(1.0)
+    ok, reason = controller.manual_switch(PhaseId.NS_STRAIGHT, 1.0)
+    assert ok is True
+    assert reason == "started_from_all_red"
+    assert controller.phase_id == PhaseId.NS_STRAIGHT
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        PhaseId.NS_LEFT_YELLOW,
+        PhaseId.NS_STRAIGHT_YELLOW,
+        PhaseId.EW_LEFT_YELLOW,
+        PhaseId.EW_STRAIGHT_YELLOW,
+        PhaseId.ALL_RED,
+        "INVALID_PHASE",
+    ],
+)
+def test_start_phase_rejects_non_protected_green_phase(target):
+    controller = make_controller()
+
+    original_phase = controller.phase_id
+    original_started_at = controller.started_at
+    original_remaining = controller.remaining(5.0)
+
+    with pytest.raises(ValueError):
+        controller.start_phase(target, 5.0)
+
+    assert controller.phase_id == original_phase
+    assert controller.started_at == original_started_at
+    assert controller.remaining(5.0) == original_remaining

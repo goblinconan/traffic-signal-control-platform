@@ -337,7 +337,7 @@ git add . ; git commit -m "feat: 你的提交说明" ; git push origin main
 - 本次为文档修订，没有修改 Python/TypeScript 源码、数据库迁移、SUMO 网络或 Docker 配置。
 - 右转独立车道、右转红灯让行、行人/非机动车冲突及对向左转同时放行，仍须在目标 SUMO 网络中通过 controlled-links、冲突矩阵和真实车辆仿真验证。
 - `Missing yellow phase` 警告仍按既有测试计划跟踪。
-- `ADR-001` 中信号控制 DISABLED 后的灯色处置、MANUAL 模式无新请求时的行为仍待确认。
+- （历史记录，已于 2026-11-15 由 ADR-014 决策并实现）信号控制 DISABLED 后的灯色处置、MANUAL 模式无新请求时的行为此前待确认。
 - 当前 40 秒直行绿、20 秒左转绿、3 秒黄灯仅作为既有 SUMO 测试基线，不代表最终交通配时已经验收。
 
 
@@ -385,3 +385,39 @@ git add . ; git commit -m "feat: 你的提交说明" ; git push origin main
 ### 当前验证状态
 
 代码包的自动化测试结果和真实 SUMO 验收结果以本次 B1 专项验收报告为准。未在用户 Windows/SUMO 环境完成的项目均保持“待本机验证”，不得标记为已通过。
+
+
+## 2026-11-15 — B2 控制域实现与自动化验证（本机 SUMO 待验收）
+
+### 安全决策
+
+- 用户确认策略 A：DISABLED 请求立即锁定新控制命令；当前绿灯完成后执行完整黄灯，再将所有 SUMO controlled links（包括右转 linkIndex 0、5、10、15）置为红灯；SUMO 继续运行。
+- 用户确认策略 B：AUTO→MANUAL 在当前绿灯及完整黄灯结束后进入全红；MANUAL 无新请求时持续全红；人工业务阶段请求须从全红启动或经完整黄灯和全红过渡。
+- 新增 `docs/ADR-014-control-mode-and-disable-policy.md`，不与既有 ADR-001 至 ADR-013 编号冲突。
+
+### 本轮代码修改
+
+- 补齐用户提供的 `backend/app/core/logging.py` 与 `backend/app/simulation/network_geometry.py`。
+- `PhaseId` 增加控制保持态 `ALL_RED`；该状态不计入原八个周期阶段。
+- `SignalService` 增加独立 `ControlMode`、`ControlStatus`、待完成模式切换和人工阶段请求；停用和 AUTO/MANUAL 切换采用安全过渡。
+- 全红状态将 20 个 controlled links 全部设置为 `r`，覆盖原四个小写 `g` 右转连接。
+- 新仿真启动重置为 ENABLED/AUTO。
+- 新增 GET/PUT 控制状态 API；通过 `SimulationLifecycle` 操作锁串行化控制命令与 TraCI 步进。
+- 更新前端信号类型、API/架构/仿真/需求/测试文档。
+
+### 当前自动化验证
+
+在独立审查副本 `B2-review/` 的 `backend` 目录执行：
+
+```powershell
+python -m compileall -q app tests
+python -m pytest -q
+```
+
+当前最终结果：`49 passed, 1 skipped`。跳过项为显式要求设置 `RUN_SUMO_INTEGRATION=1` 的真实 SUMO 集成测试；这不是本机 SUMO 验收通过的证据。
+
+### 尚未完成
+
+- 尚未在用户 Windows 项目目录替换文件。
+- 尚未执行用户本机真实 SUMO 进程启停、控制模式切换及全红灯色检查。
+- B2 阶段状态保持“代码及自动化测试完成，本机真实 SUMO 验收待执行”。

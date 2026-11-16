@@ -83,9 +83,19 @@
 6. AUTO/MANUAL 切换不能截断当前黄灯。
 7. 禁用和重新启用控制后，后端与 SUMO 状态重新核对。
 8. 连续/并发 start、stop、mode、manual 请求不会造成状态损坏。
-9. MANUAL 模式无新请求时的行为按 `ADR-001` 经确认后测试；未确认前不得自行设定验收结果。
+9. AUTO→MANUAL 必须等待当前绿灯和完整黄灯结束后进入 ALL_RED；无请求时持续全红。
+10. DISABLED 必须在当前绿灯和完整黄灯结束后将全部 20 个 controlled links（包括 4 个右转 linkIndex）置为 `r`，且 SUMO 继续 RUNNING。
+11. DISABLED 时手动阶段与配时请求返回拒绝；重新启用 AUTO 恢复 NS_LEFT，重新启用 MANUAL 保持全红。
+12. 每次新仿真启动重置为 ENABLED/AUTO，避免上一轮运行状态污染。
 
-## 6. WebSocket 与前端测试
+## 6. B2 控制域专项测试
+
+- `test_signal_controller.py`：ALL_RED 终态保持及显式恢复。
+- `test_signal_service.py`：停用安全过渡、右转全红、AUTO→MANUAL、MANUAL 空闲全红、手动请求经全红过渡、重新启用和新仿真状态重置。
+- `test_signal_control_api.py`：控制状态查询、启停与模式接口。
+- `test_network_geometry.py`：SUMO net.xml 几何解析及缺失文件处理。
+
+## 7. WebSocket 与前端测试
 
 1. 首次连接收到完整状态快照。
 2. 重连收到最新完整快照。
@@ -98,14 +108,14 @@
 9. 同一仿真 tick 下二维和三维车辆位置、灯色和阶段一致。
 10. 切换视图不重启仿真、不改变控制模式。
 
-## 7. 已知问题回归
+## 8. 已知问题回归
 
 - `Missing yellow phase` 警告必须定位到具体 `linkIndex` 和 from/to connection。
 - 验证不存在绿灯直接转红灯、黄灯被跳过或黄灯持续时间错误。
 - 重新生成网络后，必须重新核验全部 controlled links 和信号状态字符串。
 - 保留已验证左转路线，避免车道结构修改导致左转车流消失。
 
-## 8. 测试命令与证据
+## 9. 测试命令与证据
 
 单元及接口测试：
 
@@ -122,7 +132,7 @@ pytest -m integration -v
 
 每项标记为通过时，至少保留一种可复核证据：pytest 输出、API 请求/响应、SUMO 日志、浏览器录屏/截图或明确的人工验收记录。仅有代码存在或静态配置存在不视为验收通过。
 
-## 9. B1仿真生命周期管理专项
+## 10. B1仿真生命周期管理专项
 
 B1自动化测试文件：
 
