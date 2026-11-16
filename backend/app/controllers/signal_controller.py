@@ -68,13 +68,17 @@ class SignalController:
     def _get_duration(self, phase: PhaseId) -> float:
         if phase == PhaseId.ALL_RED:
             return 0.0
-        green_durations = {
+        phase_durations = {
             PhaseId.NS_LEFT: self._timing.ns_left_green,
+            PhaseId.NS_LEFT_YELLOW: self._timing.ns_left_yellow,
             PhaseId.NS_STRAIGHT: self._timing.ns_straight_green,
+            PhaseId.NS_STRAIGHT_YELLOW: self._timing.ns_straight_yellow,
             PhaseId.EW_LEFT: self._timing.ew_left_green,
+            PhaseId.EW_LEFT_YELLOW: self._timing.ew_left_yellow,
             PhaseId.EW_STRAIGHT: self._timing.ew_straight_green,
+            PhaseId.EW_STRAIGHT_YELLOW: self._timing.ew_straight_yellow,
         }
-        return green_durations.get(phase, self._timing.yellow)
+        return phase_durations[phase]
 
     def remaining(self, sim_time: float) -> float:
         return max(0.0, self._started_at + self._duration - sim_time)

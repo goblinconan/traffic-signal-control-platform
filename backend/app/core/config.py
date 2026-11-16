@@ -26,12 +26,15 @@ class Settings(BaseSettings):
     sim_step_length: float = 0.5
     simulation_step_delay: float = 0.0  # 每步真实延迟，0 表示全速
 
-    # 第一版默认配时（4个主相位 + 黄灯）
-    ns_straight_green: float = 40.0
+    # B3：四类受保护信号组分别配置绿灯和黄灯时长。
     ns_left_green: float = 20.0
-    ew_straight_green: float = 40.0
+    ns_left_yellow: float = 3.0
+    ns_straight_green: float = 40.0
+    ns_straight_yellow: float = 3.0
     ew_left_green: float = 20.0
-    yellow: float = 3.0
+    ew_left_yellow: float = 3.0
+    ew_straight_green: float = 40.0
+    ew_straight_yellow: float = 3.0
 
 
 @lru_cache

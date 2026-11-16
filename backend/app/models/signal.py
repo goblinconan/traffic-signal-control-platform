@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PhaseId(str, Enum):
@@ -44,50 +44,46 @@ class LightState(str, Enum):
 
 
 class TimingConfig(BaseModel):
-    ns_straight_green: float = Field(default=40, gt=8)
+    """四类受保护信号组独立绿灯/黄灯配时。"""
+
+    model_config = ConfigDict(extra="forbid")
+
     ns_left_green: float = Field(default=20, gt=8)
-    ew_straight_green: float = Field(default=40, gt=8)
+    ns_left_yellow: float = Field(default=3, gt=0)
+    ns_straight_green: float = Field(default=40, gt=8)
+    ns_straight_yellow: float = Field(default=3, gt=0)
     ew_left_green: float = Field(default=20, gt=8)
-    yellow: float = Field(default=3, gt=0)
+    ew_left_yellow: float = Field(default=3, gt=0)
+    ew_straight_green: float = Field(default=40, gt=8)
+    ew_straight_yellow: float = Field(default=3, gt=0)
+
+    @property
+    def cycle_length(self) -> float:
+        return sum((
+            self.ns_left_green, self.ns_left_yellow,
+            self.ns_straight_green, self.ns_straight_yellow,
+            self.ew_left_green, self.ew_left_yellow,
+            self.ew_straight_green, self.ew_straight_yellow,
+        ))
 
     @property
     def ns_left_red(self) -> float:
-        return (
-            self.ns_straight_green
-            + self.ew_left_green
-            + self.ew_straight_green
-            + self.yellow * 3
-        )
+        return self.cycle_length - self.ns_left_green - self.ns_left_yellow
 
     @property
     def ns_straight_red(self) -> float:
-        return (
-            self.ns_left_green
-            + self.ew_left_green
-            + self.ew_straight_green
-            + self.yellow * 3
-        )
+        return self.cycle_length - self.ns_straight_green - self.ns_straight_yellow
 
     @property
     def ew_left_red(self) -> float:
-        return (
-            self.ew_straight_green
-            + self.ns_left_green
-            + self.ns_straight_green
-            + self.yellow * 3
-        )
+        return self.cycle_length - self.ew_left_green - self.ew_left_yellow
 
     @property
     def ew_straight_red(self) -> float:
-        return (
-            self.ew_left_green
-            + self.ns_left_green
-            + self.ns_straight_green
-            + self.yellow * 3
-        )
+        return self.cycle_length - self.ew_straight_green - self.ew_straight_yellow
 
     @model_validator(mode="after")
-    def check_red(self) -> TimingConfig:
+    def check_red(self) -> "TimingConfig":
         red_durations = {
             "南北左转": self.ns_left_red,
             "南北直行": self.ns_straight_red,

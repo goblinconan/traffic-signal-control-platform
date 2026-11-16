@@ -9,11 +9,14 @@ from app.models.signal import LightState, PhaseId, TimingConfig
 
 def make_controller() -> SignalController:
     timing = TimingConfig(
-        ns_straight_green=40,
         ns_left_green=20,
-        ew_straight_green=40,
+        ns_left_yellow=3,
+        ns_straight_green=40,
+        ns_straight_yellow=3,
         ew_left_green=20,
-        yellow=3,
+        ew_left_yellow=3,
+        ew_straight_green=40,
+        ew_straight_yellow=3,
     )
     return SignalController(timing, start_time=0.0)
 
@@ -79,11 +82,14 @@ def test_timing_red_durations_are_movement_specific():
 def test_timing_update_changes_current_duration_without_resetting_start():
     controller = make_controller()
     new_timing = TimingConfig(
-        ns_straight_green=45,
         ns_left_green=25,
-        ew_straight_green=42,
+        ns_left_yellow=3,
+        ns_straight_green=45,
+        ns_straight_yellow=3,
         ew_left_green=22,
-        yellow=3,
+        ew_left_yellow=3,
+        ew_straight_green=42,
+        ew_straight_yellow=3,
     )
     controller.apply_timing(new_timing)
 
@@ -146,3 +152,33 @@ def test_start_phase_rejects_non_protected_green_phase(target):
     assert controller.phase_id == original_phase
     assert controller.started_at == original_started_at
     assert controller.remaining(5.0) == original_remaining
+
+def test_each_movement_uses_its_own_yellow_duration_and_red_calculation():
+    timing = TimingConfig(
+        ns_left_green=20, ns_left_yellow=4,
+        ns_straight_green=40, ns_straight_yellow=2,
+        ew_left_green=22, ew_left_yellow=5,
+        ew_straight_green=41, ew_straight_yellow=3,
+    )
+    controller = SignalController(timing, start_time=0.0)
+
+    assert timing.cycle_length == 137
+    assert timing.ns_left_red == 113
+    assert timing.ns_straight_red == 95
+    assert timing.ew_left_red == 110
+    assert timing.ew_straight_red == 93
+
+    assert controller.advance_if_needed(20.0)
+    assert controller.phase_id == PhaseId.NS_LEFT_YELLOW
+    assert controller.remaining(20.0) == 4
+
+    assert controller.advance_if_needed(24.0)
+    assert controller.phase_id == PhaseId.NS_STRAIGHT
+    assert controller.remaining(24.0) == 40
+
+
+def test_invalid_individual_yellow_duration_is_rejected():
+    with pytest.raises(ValueError):
+        TimingConfig(
+            ns_left_yellow=0,
+        )

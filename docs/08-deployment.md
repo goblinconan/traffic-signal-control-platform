@@ -75,3 +75,21 @@ docker compose down
 - 任何部署方式均须验证后端信号状态机、8 个目标阶段、WebSocket 状态推送和车辆数据链路；容器启动成功不等于业务验收通过。
 - 当前阶段顺序以南北左转、南北直行、东西左转、东西直行为准；部署配置不得继续沿用历史测试网络阶段顺序。
 
+
+
+## 6. B3 配时与手动阶段功能部署
+
+B3 代码包使用 `B3-apply-delivery.ps1` 进行逐文件更新。必须先在项目根目录运行默认预检，再使用 `-Apply` 正式更新；脚本会在 `temp` 下创建更新前备份并逐文件验证 SHA256。不要把 `B3-delivery` 暂存目录提交到 Git。
+
+更新后：
+
+```powershell
+Set-Location D:\Projects\traffic-signal-control-platform\backend
+..\.venv\Scripts\python.exe -m compileall -q app tests
+..\.venv\Scripts\python.exe -m pip check
+..\.venv\Scripts\python.exe -m pytest -q
+```
+
+启动真实 SUMO/HTTP 验收时，必须使用项目原有 Windows SUMO 1.28.0 环境；B3 的配时 API 和手动阶段 API 只能在仿真 RUNNING 时调用。详细请求、预期响应和安全检查见 `docs/11-b3-timing-and-manual-control.md`。
+
+B3 当前不引入数据库表迁移，active/pending 配时在进程内管理。重启 FastAPI 后会从 `Settings` 默认值重新初始化；PostgreSQL 配时持久化和操作审计不属于本次 B3 交付。B4 的 REST/WS 统一状态模型及 B5 浏览器操作台仍是后续阶段。

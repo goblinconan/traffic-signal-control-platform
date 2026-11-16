@@ -27,11 +27,14 @@ export interface SignalControlState {
 export type LightState = "G" | "y" | "r";
 
 export interface TimingConfig {
-  ns_straight_green: number;
   ns_left_green: number;
-  ew_straight_green: number;
+  ns_left_yellow: number;
+  ns_straight_green: number;
+  ns_straight_yellow: number;
   ew_left_green: number;
-  yellow: number;
+  ew_left_yellow: number;
+  ew_straight_green: number;
+  ew_straight_yellow: number;
 }
 
 export interface DirectionState {

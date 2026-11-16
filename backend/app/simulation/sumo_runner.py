@@ -495,3 +495,12 @@ class SumoRunner:
 
             api.trafficlight.setRedYellowGreenState(tls_id, state)
             log.debug("set tls %s state=%s", tls_id, state)
+
+    def get_tls_state(self, tls_id: str) -> str:
+        """读取 SUMO 当前实际 TLS 状态，供运行诊断和集成验收使用。"""
+        with self._lock:
+            if not self._connected:
+                raise RuntimeError("SUMO 未连接，无法读取 traffic-light state")
+            return str(
+                self._require_traci().trafficlight.getRedYellowGreenState(tls_id)
+            )

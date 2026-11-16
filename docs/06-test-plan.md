@@ -1,7 +1,7 @@
 # 测试计划
 
-> 版本：V2.1  
-> 对应需求：`docs/01-requirements.md`  
+> 版本：V2.1
+> 对应需求：`docs/01-requirements.md`
 > 对应仿真设计：`docs/05-simulation-design.md`
 
 ## 1. 测试分层
@@ -88,14 +88,23 @@
 11. DISABLED 时手动阶段与配时请求返回拒绝；重新启用 AUTO 恢复 NS_LEFT，重新启用 MANUAL 保持全红。
 12. 每次新仿真启动重置为 ENABLED/AUTO，避免上一轮运行状态污染。
 
-## 6. B2 控制域专项测试
+## 6. B3 配时与手动阶段安全应用专项
+
+- `test_signal_controller.py`：四类独立黄灯时长、红灯周期计算、黄灯边界与倒计时。
+- `test_signal_service.py`：AUTO 完整周期应用 pending；MANUAL 全红时立即应用；MANUAL 活动阶段修改配时后只在全红边界应用；手动阶段切换实际向 SUMO 下发全红并至少保持一个 step。
+- `test_signal_control_api.py`：完整八字段配时请求、缺字段/未知字段/非法时长拒绝、配时查询与版本、手动请求 accepted/status/reason。
+- 手动阶段 API 只能在仿真 RUNNING、控制 ENABLED、模式 MANUAL 时接受合法目标；不得接受黄灯阶段、ALL_RED 或任意字符串。
+- API 失败不得改变 active/pending 配时、当前阶段或 SUMO 灯色。
+- 本阶段配时版本仅由进程内服务管理；数据库持久化和操作审计表不在 B3 代码包验收范围，必须单独标记为后续工作。
+
+## 7. B2 控制域专项测试
 
 - `test_signal_controller.py`：ALL_RED 终态保持及显式恢复。
 - `test_signal_service.py`：停用安全过渡、右转全红、AUTO→MANUAL、MANUAL 空闲全红、手动请求经全红过渡、重新启用和新仿真状态重置。
 - `test_signal_control_api.py`：控制状态查询、启停与模式接口。
 - `test_network_geometry.py`：SUMO net.xml 几何解析及缺失文件处理。
 
-## 7. WebSocket 与前端测试
+## 8. WebSocket 与前端测试
 
 1. 首次连接收到完整状态快照。
 2. 重连收到最新完整快照。
@@ -108,14 +117,14 @@
 9. 同一仿真 tick 下二维和三维车辆位置、灯色和阶段一致。
 10. 切换视图不重启仿真、不改变控制模式。
 
-## 8. 已知问题回归
+## 9. 已知问题回归
 
 - `Missing yellow phase` 警告必须定位到具体 `linkIndex` 和 from/to connection。
 - 验证不存在绿灯直接转红灯、黄灯被跳过或黄灯持续时间错误。
 - 重新生成网络后，必须重新核验全部 controlled links 和信号状态字符串。
 - 保留已验证左转路线，避免车道结构修改导致左转车流消失。
 
-## 9. 测试命令与证据
+## 10. 测试命令与证据
 
 单元及接口测试：
 
@@ -132,7 +141,7 @@ pytest -m integration -v
 
 每项标记为通过时，至少保留一种可复核证据：pytest 输出、API 请求/响应、SUMO 日志、浏览器录屏/截图或明确的人工验收记录。仅有代码存在或静态配置存在不视为验收通过。
 
-## 10. B1仿真生命周期管理专项
+## 11. B1仿真生命周期管理专项
 
 B1自动化测试文件：
 

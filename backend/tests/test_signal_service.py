@@ -1,13 +1,7 @@
 
-import os
-import sys
-import types
 import pytest
 import xml.etree.ElementTree as ET
 from pathlib import Path
-
-# 测试 SignalService 不启动 SUMO；仅提供 TraCI 模块导入占位。
-sys.modules.setdefault("traci", types.ModuleType("traci"))
 
 from app.core.config import Settings
 from app.models.signal import PhaseId, TimingConfig
@@ -60,11 +54,14 @@ def make_service():
         sumo_home="C:/SUMO",
         sumo_config=str(PROJECT_ROOT / "simulation/config/intersection.sumocfg"),
         tls_id="intersection_0",
-        ns_straight_green=40,
         ns_left_green=20,
-        ew_straight_green=40,
+        ns_left_yellow=3,
+        ns_straight_green=40,
+        ns_straight_yellow=3,
         ew_left_green=20,
-        yellow=3,
+        ew_left_yellow=3,
+        ew_straight_green=40,
+        ew_straight_yellow=3,
     )
     runner = FakeRunner()
     timing = TimingService(TimingConfig())
@@ -120,11 +117,14 @@ def test_pending_timing_is_promoted_only_at_complete_cycle_boundary():
     service, _ = make_service()
     service.on_started()
     candidate = TimingConfig(
-        ns_straight_green=45,
         ns_left_green=25,
-        ew_straight_green=42,
+        ns_left_yellow=3,
+        ns_straight_green=45,
+        ns_straight_yellow=3,
         ew_left_green=22,
-        yellow=3,
+        ew_left_yellow=3,
+        ew_straight_green=42,
+        ew_straight_yellow=3,
     )
     service.submit_timing(candidate)
 
@@ -183,6 +183,11 @@ def test_auto_to_manual_waits_for_yellow_then_holds_all_red_until_request():
     assert result["pending_mode"] == "MANUAL"
 
     _advance_service(service, 6)
+    assert service.controller.phase_id == PhaseId.ALL_RED
+    assert service.control_mode == ControlMode.AUTO
+    assert runner.states[-1] == "r" * 20
+
+    _advance_service(service, 1)  # 全红实际保持一个仿真 step 后完成模式切换
     assert service.control_mode == ControlMode.MANUAL
     assert service.controller.phase_id == PhaseId.ALL_RED
     assert runner.states[-1] == "r" * 20
@@ -200,7 +205,7 @@ def test_manual_request_starts_from_all_red_and_next_request_uses_safe_transitio
     service.on_started()
     _advance_service(service, 40)
     service.request_control_mode(ControlMode.MANUAL)
-    _advance_service(service, 6)
+    _advance_service(service, 7)
 
     ok, reason = service.manual_switch(PhaseId.EW_LEFT)
     assert ok is True
@@ -213,7 +218,10 @@ def test_manual_request_starts_from_all_red_and_next_request_uses_safe_transitio
 
     _advance_service(service, 40)  # EW_LEFT green ends -> yellow
     assert service.controller.phase_id == PhaseId.EW_LEFT_YELLOW
-    _advance_service(service, 6)   # yellow completes -> all red -> target starts
+    _advance_service(service, 6)   # yellow completes; all-red is actually sent to SUMO
+    assert service.controller.phase_id == PhaseId.ALL_RED
+    assert runner.states[-1] == "r" * 20
+    _advance_service(service, 1)    # one full-red simulation step, then target starts
     assert service.controller.phase_id == PhaseId.NS_STRAIGHT
     assert runner.states[-1] == "gGGrrgrrrrgGGrrgrrrr"
 
@@ -281,7 +289,7 @@ def test_auto_mode_switch_from_manual_active_phase_waits_for_all_red():
     service.on_started()
     _advance_service(service, 40)
     service.request_control_mode(ControlMode.MANUAL)
-    _advance_service(service, 6)
+    _advance_service(service, 7)
     service.manual_switch(PhaseId.EW_LEFT)
 
     result = service.request_control_mode(ControlMode.AUTO)
@@ -291,6 +299,11 @@ def test_auto_mode_switch_from_manual_active_phase_waits_for_all_red():
     _advance_service(service, 40)
     assert service.controller.phase_id == PhaseId.EW_LEFT_YELLOW
     _advance_service(service, 6)
+    assert service.controller.phase_id == PhaseId.ALL_RED
+    assert runner.states[-1] == "r" * 20
+    assert service.control_mode == ControlMode.MANUAL
+
+    _advance_service(service, 1)
     assert service.control_mode == ControlMode.AUTO
     assert service.controller.phase_id == PhaseId.NS_LEFT
     assert runner.states[-1] == "grrGGgrrrrgrrGGgrrrr"
@@ -303,7 +316,7 @@ def test_switching_to_auto_clears_unexecuted_manual_target():
     service.on_started()
     _advance_service(service, 40)
     service.request_control_mode(ControlMode.MANUAL)
-    _advance_service(service, 6)
+    _advance_service(service, 7)
     service.manual_switch(PhaseId.EW_LEFT)
     service.manual_switch(PhaseId.NS_STRAIGHT)
     assert service._pending_manual_phase == PhaseId.NS_STRAIGHT
@@ -330,8 +343,9 @@ def test_manual_switch_rejects_non_protected_green_phase(target):
     service.on_started()
 
     service.request_control_mode(ControlMode.MANUAL)
-    _advance_service(service, 46)
+    _advance_service(service, 47)
 
+    assert service.control_mode == ControlMode.MANUAL
     assert service.controller.phase_id == PhaseId.ALL_RED
 
     previous_state = runner.states[-1]
@@ -343,3 +357,65 @@ def test_manual_switch_rejects_non_protected_green_phase(target):
     assert service.controller.phase_id == PhaseId.ALL_RED
     assert service._pending_manual_phase is None
     assert runner.states[-1] == previous_state
+
+
+def test_manual_pending_timing_applies_only_after_full_red_boundary():
+    from app.models.signal import ControlMode
+
+    service, runner = make_service()
+    service.on_started()
+    _advance_service(service, 40)
+    service.request_control_mode(ControlMode.MANUAL)
+    _advance_service(service, 7)
+    assert service.controller.phase_id == PhaseId.ALL_RED
+
+    # MANUAL 全红时提交可立即应用，不会截断任何正在执行的阶段。
+    candidate = TimingConfig(
+        ns_left_green=24, ns_left_yellow=4,
+        ns_straight_green=42, ns_straight_yellow=2,
+        ew_left_green=21, ew_left_yellow=5,
+        ew_straight_green=43, ew_straight_yellow=3,
+    )
+    result = service.submit_timing(candidate)
+    assert result["status"] == "applied"
+    assert service.timing.active == candidate
+    assert service.timing.pending is None
+    assert service.timing.version == 2
+
+    # 开始人工阶段后再次提交；在当前绿灯/黄灯结束前不能生效。
+    service.manual_switch(PhaseId.EW_LEFT)
+    candidate2 = candidate.model_copy(update={"ew_left_green": 26})
+    result = service.submit_timing(candidate2)
+    assert result["status"] == "queued"
+    assert result["effective"] == "next_manual_all_red"
+    assert service.timing.active == candidate
+    assert service.timing.pending == candidate2
+
+    service.manual_switch(PhaseId.NS_STRAIGHT)
+    _advance_service(service, 52)  # EW_LEFT 绿灯 + 黄灯，进入全红
+    assert service.controller.phase_id == PhaseId.ALL_RED
+    assert runner.states[-1] == "r" * 20
+    assert service.timing.active == candidate2
+    assert service.timing.pending is None
+
+    _advance_service(service, 1)  # 全红保持一个完整仿真 step 后启动目标
+    assert service.controller.phase_id == PhaseId.NS_STRAIGHT
+
+
+def test_manual_request_for_current_phase_is_noop():
+    from app.models.signal import ControlMode
+
+    service, runner = make_service()
+    service.on_started()
+    _advance_service(service, 40)
+    service.request_control_mode(ControlMode.MANUAL)
+    _advance_service(service, 7)
+    service.manual_switch(PhaseId.NS_LEFT)
+
+    before = list(runner.states)
+    ok, reason = service.manual_switch(PhaseId.NS_LEFT)
+    assert ok is True
+    assert reason == "already_in_phase"
+    assert service.controller.phase_id == PhaseId.NS_LEFT
+    assert service._pending_manual_phase is None
+    assert runner.states == before

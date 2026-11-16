@@ -1,7 +1,7 @@
 # API 接口设计
 
-> 文档版本：V2.1（目标契约）  
-> Base URL：`/api`  
+> 文档版本：V2.1（目标契约）
+> Base URL：`/api`
 > 对应需求：`docs/01-requirements.md`
 >
 > 本文件定义目标接口契约。写入本文不代表接口已在代码中实现；实现状态以代码审查和接口测试为准。
@@ -170,51 +170,86 @@ SUMO 信号字符约定：
 
 ### GET `/api/signals/{tls_id}/timing`
 
-返回当前生效配时、待生效配时、配时版本及后端计算的红灯总时长。
+返回当前生效配时、待生效配时、当前版本、待生效版本及按完整周期计算的红灯时长。
 
-### PUT `/api/signals/{tls_id}/timing`
-
-目标请求：
+响应示例：
 
 ```json
 {
-  "ns_straight_green": 40,
-  "ns_straight_yellow": 3,
-  "ns_left_green": 20,
-  "ns_left_yellow": 3,
-  "ew_straight_green": 40,
-  "ew_straight_yellow": 3,
-  "ew_left_green": 20,
-  "ew_left_yellow": 3
+  "active": {
+    "ns_left_green": 20,
+    "ns_left_yellow": 3,
+    "ns_straight_green": 40,
+    "ns_straight_yellow": 3,
+    "ew_left_green": 20,
+    "ew_left_yellow": 3,
+    "ew_straight_green": 40,
+    "ew_straight_yellow": 3
+  },
+  "pending": null,
+  "timing_version": 1,
+  "pending_timing_version": null,
+  "computed": {
+    "cycle_length": 132,
+    "ns_left_red": 109,
+    "ns_straight_red": 89,
+    "ew_left_red": 109,
+    "ew_straight_red": 89
+  }
 }
 ```
 
-目标响应：
+### PUT `/api/signals/{tls_id}/timing`
+
+请求：
+
+```json
+{
+  "ns_left_green": 20,
+  "ns_left_yellow": 4,
+  "ns_straight_green": 40,
+  "ns_straight_yellow": 3,
+  "ew_left_green": 22,
+  "ew_left_yellow": 3,
+  "ew_straight_green": 40,
+  "ew_straight_yellow": 3
+}
+```
+
+AUTO 模式下，响应为 `status=queued`、`effective=next_cycle_boundary`；新配时在 EW_STRAIGHT_YELLOW 完成并开始下一轮 NS_LEFT 时整体生效。
+
+MANUAL 模式下：
+- 当前处于业务绿灯/黄灯时，响应 `effective=next_manual_all_red`，在当前绿灯及完整黄灯结束、全红安全边界到达时应用。
+- 已经处于 ALL_RED 时，可立即应用，响应 `effective=immediate_all_red`。
+- 当前阶段不会被缩短或重置。
+
+响应示例：
 
 ```json
 {
   "accepted": true,
+  "status": "queued",
   "effective": "next_cycle_boundary",
-  "timing_version": 2,
-  "calculated_red": {
-    "ns_straight": 89,
-    "ns_left": 109,
-    "ew_straight": 89,
-    "ew_left": 109
-  },
-  "pending_timing": {}
+  "active": {},
+  "pending": {},
+  "timing_version": 1,
+  "pending_timing_version": 2,
+  "computed": {}
 }
 ```
 
 校验约束：
 
 - 四类绿灯持续时间分别必须大于 8 秒。
-- 四类黄灯持续时间分别必须大于 0 秒，默认 3 秒。
+- 四类黄灯持续时间分别必须大于 0 秒，默认各 3 秒。
 - 四类受保护信号组的红灯总时长必须分别大于 10 秒。
+- 请求必须提供全部八个绿/黄灯时长字段；未知字段拒绝，不接受旧版单一 `yellow` 字段。
 - 红灯时长按完整 8 阶段周期计算；如经安全验证增加全红清空阶段，必须计入周期计算。
-- 不再使用旧双相位公式 `ns_red = ew_green + ew_yellow`、`ew_red = ns_green + ns_yellow`。
-- 当前阶段不得被截断；新方案必须在安全周期边界整体生效。
-- 校验失败返回 400 或 422，且不得改变当前生效方案。
+- 当前阶段不得被截断；新方案必须在安全边界整体生效。
+- 校验失败返回 422，且不得改变当前生效或待生效方案。
+- 同一路口最多保留一个待生效方案；新的有效请求替换旧 pending，提交当前 active 方案可撤销 pending。
+
+> 当前 B3 配时版本由后端进程内管理；服务进程重启后恢复配置默认值。PostgreSQL `timing_plan` 持久化与 `signal_operation_log` 审计表尚未实现，不在 B3 本次代码交付范围，后续数据库持久化阶段另行实施。
 
 ## 6. 手动阶段请求
 
@@ -232,7 +267,7 @@ SUMO 信号字符约定：
 {
   "accepted": true,
   "status": "queued",
-  "reason": "will_apply_after_safe_transition"
+  "reason": "accepted_after_safe_all_red"
 }
 ```
 
@@ -242,6 +277,9 @@ SUMO 信号字符约定：
 - 目标阶段必须属于该信号机允许的业务阶段。
 - 不允许跳过或缩短当前黄灯阶段。
 - 不允许直接下发任意 SUMO 灯色字符串。
+- 从 ALL_RED 发起请求时可立即启动目标绿灯，响应 `status=started`。
+- 从正在运行的业务阶段发起请求时，后端先完成当前绿灯和完整黄灯，再向 SUMO 实际下发全红；全红至少保持一个仿真 step 后，才启动目标绿灯，响应 `status=queued`。
+- 请求当前已运行的目标阶段时返回 `status=unchanged`，不触发无意义切换。
 - 完整安全过渡由后端状态机决定。
 - MANUAL 模式无新请求时持续保持全红，按 `ADR-014` 执行。
 

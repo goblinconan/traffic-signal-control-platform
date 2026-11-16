@@ -38,11 +38,14 @@ class SignalService:
     def create(cls, settings: Settings, runner: SumoRunner) -> "SignalService":
         timing = TimingService(
             TimingConfig(
-                ns_straight_green=settings.ns_straight_green,
                 ns_left_green=settings.ns_left_green,
-                ew_straight_green=settings.ew_straight_green,
+                ns_left_yellow=settings.ns_left_yellow,
+                ns_straight_green=settings.ns_straight_green,
+                ns_straight_yellow=settings.ns_straight_yellow,
                 ew_left_green=settings.ew_left_green,
-                yellow=settings.yellow,
+                ew_left_yellow=settings.ew_left_yellow,
+                ew_straight_green=settings.ew_straight_green,
+                ew_straight_yellow=settings.ew_straight_yellow,
             )
         )
         controller = SignalController(timing.active)
@@ -163,14 +166,22 @@ class SignalService:
         sim_time = self.runner.step()
         previous_phase = self.controller.phase_id
         switched = self.controller.advance_if_needed(sim_time)
+        entered_all_red = switched and self.controller.is_all_red
 
-        # 只有完整八阶段周期结束、重新进入 NS_LEFT 绿灯时才提升待生效配时。
-        if switched and previous_phase == PhaseId.EW_STRAIGHT_YELLOW \
-                and self.controller.phase_id == PhaseId.NS_LEFT:
-            promoted = self.timing.promote_pending_if_any()
-            if promoted is not None:
-                self.controller.apply_timing(promoted)
-                log.info("timing promoted at cycle boundary: %s", promoted)
+        # AUTO：只在完整八阶段周期边界整体应用新配时。
+        cycle_boundary = (
+            switched
+            and previous_phase == PhaseId.EW_STRAIGHT_YELLOW
+            and self.controller.phase_id == PhaseId.NS_LEFT
+        )
+        if cycle_boundary:
+            self._promote_pending_timing()
+
+        # MANUAL/安全模式切换：进入 ALL_RED 后先向 SUMO 实际下发全红，
+        # 至少保持一个仿真 step；下一次 step 才允许启动目标阶段/完成模式切换。
+        # 这避免在同一次后台循环中 ALL_RED 被瞬间覆盖，SUMO 从未实际处于全红。
+        if entered_all_red:
+            self._promote_pending_timing()
 
         if self.controller.is_all_red:
             if self.control_status == ControlStatus.DISABLING:
@@ -178,20 +189,37 @@ class SignalService:
                 self._pending_mode = None
                 self._pending_manual_phase = None
                 log.info("signal control entered DISABLED after safe all-red")
-            elif self._pending_mode is not None:
+            elif not entered_all_red and self._pending_mode is not None:
                 self.control_mode = self._pending_mode
                 self._pending_mode = None
                 if self.control_mode == ControlMode.AUTO and self.control_status == ControlStatus.ENABLED:
                     self.controller.resume_auto(sim_time)
                 log.info("signal control mode changed to %s at all-red", self.control_mode.value)
-            elif self._pending_manual_phase is not None and self.control_status == ControlStatus.ENABLED and self.control_mode == ControlMode.MANUAL:
+            elif (
+                not entered_all_red
+                and self._pending_manual_phase is not None
+                and self.control_status == ControlStatus.ENABLED
+                and self.control_mode == ControlMode.MANUAL
+            ):
                 target = self._pending_manual_phase
                 self._pending_manual_phase = None
                 self.controller.start_phase(target, sim_time)
-                log.info("manual phase started after all-red: %s", target.value)
+                log.info("manual phase started after all-red hold: %s", target.value)
 
         self._sync_sumo()
         return self.snapshot(sim_time)
+
+    def _promote_pending_timing(self) -> bool:
+        promoted = self.timing.promote_pending_if_any()
+        if promoted is None:
+            return False
+        self.controller.apply_timing(promoted)
+        log.info(
+            "timing promoted at safe boundary: version=%s timing=%s",
+            self.timing.version,
+            promoted.model_dump(),
+        )
+        return True
 
     def snapshot(self, sim_time: float | None = None) -> SignalSnapshot:
         if sim_time is None:
@@ -210,10 +238,65 @@ class SignalService:
             timing=self.timing.active,
         )
 
-    def submit_timing(self, candidate: TimingConfig) -> TimingConfig:
+    def submit_timing(self, candidate: TimingConfig) -> dict:
         if self.control_status != ControlStatus.ENABLED:
+            log.warning(
+                "timing update rejected: control_status=%s candidate=%s",
+                self.control_status.value,
+                candidate.model_dump(),
+            )
             raise ValueError("信号控制未启用，拒绝配时控制命令")
-        return self.timing.submit(candidate)
+
+        pending = self.timing.submit(candidate)
+        if pending is None:
+            result = {
+                "accepted": True,
+                "status": "unchanged_or_pending_cancelled",
+                "effective": "immediate",
+                **self.timing.snapshot(),
+            }
+            log.info(
+                "timing update accepted: status=%s effective=%s version=%s candidate=%s",
+                result["status"], result["effective"], self.timing.version,
+                candidate.model_dump(),
+            )
+            return result
+
+        # MANUAL 已处于全红时不存在正在执行的阶段，可立即安全应用。
+        if self.control_mode == ControlMode.MANUAL and self.controller.is_all_red:
+            self._promote_pending_timing()
+            result = {
+                "accepted": True,
+                "status": "applied",
+                "effective": "immediate_all_red",
+                **self.timing.snapshot(),
+            }
+            log.info(
+                "timing update accepted: status=applied effective=immediate_all_red "
+                "version=%s candidate=%s",
+                self.timing.version,
+                candidate.model_dump(),
+            )
+            return result
+
+        effective = (
+            "next_cycle_boundary"
+            if self.control_mode == ControlMode.AUTO
+            else "next_manual_all_red"
+        )
+        result = {
+            "accepted": True,
+            "status": "queued",
+            "effective": effective,
+            **self.timing.snapshot(),
+        }
+        log.info(
+            "timing update accepted: status=queued effective=%s "
+            "active_version=%s pending_version=%s candidate=%s",
+            effective, self.timing.version, self.timing.pending_version,
+            candidate.model_dump(),
+        )
+        return result
 
     def request_control_enabled(self, enabled: bool) -> dict:
         sim_time = self.runner.simulation_time()
@@ -284,24 +367,39 @@ class SignalService:
 
     def manual_switch(self, target: PhaseId) -> tuple[bool, str]:
         if self.control_status != ControlStatus.ENABLED:
+            log.warning("manual phase rejected: reason=control_disabled target=%s", target)
             return False, "control_disabled"
         if self.control_mode != ControlMode.MANUAL:
+            log.warning("manual phase rejected: reason=manual_mode_required target=%s", target)
             return False, "manual_mode_required"
         if target not in {
             PhaseId.NS_LEFT, PhaseId.NS_STRAIGHT,
             PhaseId.EW_LEFT, PhaseId.EW_STRAIGHT,
         }:
+            log.warning("manual phase rejected: reason=invalid_target target=%s", target)
             return False, "target_must_be_protected_green_phase"
         if self._pending_manual_phase is not None:
+            log.warning(
+                "manual phase rejected: reason=manual_transition_pending target=%s pending=%s",
+                target, self._pending_manual_phase,
+            )
             return False, "manual_transition_pending"
+        if self.controller.phase_id == target:
+            log.info("manual phase accepted as no-op: target=%s", target.value)
+            return True, "already_in_phase"
 
         sim_time = self.runner.simulation_time()
         if self.controller.is_all_red:
             self.controller.start_phase(target, sim_time)
             self._sync_sumo()
+            log.info("manual phase accepted: target=%s status=started_from_all_red", target.value)
             return True, "started_from_all_red"
 
         self._pending_manual_phase = target
         self.controller.request_all_red()
         self._sync_sumo()
+        log.info(
+            "manual phase accepted: target=%s status=queued_after_green_yellow",
+            target.value,
+        )
         return True, "accepted_after_safe_all_red"

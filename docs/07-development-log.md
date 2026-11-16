@@ -97,14 +97,14 @@ git commit -m "feat(sim): 跑通SUMO单路口信控闭环，修复异步死锁�
    - 重新编写了 `intersection.rou.xml`，引入了密集的直行、左转、右转车流。
    - **修复了车流丢失问题**：发现 SUMO 要求 `<flow>` 必须按 `begin` 时间递增排序，否则会静默忽略未排序的车流（导致左转车完全不生成）。已重新排序并通过 `vehroute-output` 独立验证。
 
-   
+
 2. **信号灯状态机与相位修复**
    - 将信号机升级为当时测试用的 8 个相位（南北直行绿/黄、南北左转绿/黄、东西直行绿/黄、东西左转绿/黄）。该排列是 2026-11-11 历史测试配置，不是 2026-11-13 确认的当前目标顺序。
    - 更新了 `intersection.tll.xml`，将状态字符串扩展为 20 位，并与 `netconvert` 重新合并。
    - 修复了红灯剩余时间计算逻辑，确保前端在红灯最后 10 秒、绿灯最后 8 秒精准展示倒计时。
    - 修复了异步死锁：将 `runner.start/stop` 放入 `asyncio.to_thread` 线程池，解决 FastAPI 卡死问题。
 
-   
+
 3. **坐标系统与前端可视化**
    - **解决坐标漂移**：`netconvert` 默认开启归一化会平移路网。通过 `--offset.disable-normalization true` 强制固定中心点在 (0,0)，并通过后端 `traci.junction.getPosition` 动态下发相对坐标。
    - **前端车道渲染**：将 SVG 马路总宽拓宽至 120px，绘制了完美的双向双黄线和 10 车道虚线。
@@ -199,8 +199,8 @@ git push origin main
 
 *(如果你用的是 `master` 分支，就把 `main` 换成 `master`)*
 
-> **如果你还没关联远程仓库**，需要先在 GitHub 新建一个空仓库，然后执行：  
-> `git remote add origin <你的GitHub仓库地址>`  
+> **如果你还没关联远程仓库**，需要先在 GitHub 新建一个空仓库，然后执行：
+> `git remote add origin <你的GitHub仓库地址>`
 > `git push -u origin main`
 
 
@@ -265,10 +265,10 @@ git add . ; git commit -m "feat: 你的提交说明" ; git push origin main
 
 按照你最初定的规范，每次提交的说明必须带上**类型前缀**。以后直接套用下面这些模板：
 
-- **新增功能**：`feat(模块): 增加了配时修改接口`  
+- **新增功能**：`feat(模块): 增加了配时修改接口`
   *(例如：`feat(frontend): 增加红绿灯倒计时显示`)*
 
-- **修 Bug**：`fix(模块): 修复了什么错误`  
+- **修 Bug**：`fix(模块): 修复了什么错误`
   *(例如：`fix(sumo): 修复左转车流不生成的flow排序问题`)*
 
 - **改文档**：`docs: 更新了今天的开发日志和README`
@@ -281,13 +281,13 @@ git add . ; git commit -m "feat: 你的提交说明" ; git push origin main
 
 ### 🚫 日常避坑指南（非常重要）
 
-1. **千万别把 `.venv` 或 `node_modules` 提交上去**：  
+1. **千万别把 `.venv` 或 `node_modules` 提交上去**：
      只要你在根目录执行了 `git add .`，Git 会自动读取 `.gitignore` 文件，把这些几万兆的垃圾文件忽略。所以**千万不要删掉 `.gitignore` 文件**。
 
-2. **`git push` 失败报错**：  
+2. **`git push` 失败报错**：
      如果提示 `Updates were rejected`，说明 GitHub 上的代码比你本地新（比如你在网页上直接改了 README）。先执行 `git pull origin main --rebase`，解决冲突后再 `git push`。
 
-3. **提交频率**：  
+3. **提交频率**：
      **每完成一个能跑通的小功能，就立刻 commit 一次**。千万别积累了一周再提交，一旦代码崩了，你连回滚的后悔药都没有。
 
 **把你的开发日志 `07-development-log.md` 当作 Commit 的副产品**：每次提交前，顺手在日志里加两行今天干了啥，然后连着代码一起 `add` 进去，你的开发轨迹就完美闭环了。
@@ -421,3 +421,29 @@ python -m pytest -q
 - 尚未在用户 Windows 项目目录替换文件。
 - 尚未执行用户本机真实 SUMO 进程启停、控制模式切换及全红灯色检查。
 - B2 阶段状态保持“代码及自动化测试完成，本机真实 SUMO 验收待执行”。
+
+
+## 2026-11-16 — B2 正式完成与 B3 配时/手动阶段交付
+
+### B2 Git 里程碑
+
+- 正式提交：`85fe65e Complete B2 signal control modes and safety`。
+- 创建并推送标签：`B2-complete`。
+- `origin/main` 指向 `85fe65e`；B2 代码和验收文档已同步 GitHub。
+- 本机正式更新后回归、真实 SUMO/HTTP 控制验收及前端生产构建已按 `10-b2-control-mode-and-acceptance.md` 记录完成。
+
+### B3 本轮实现
+
+- 将配时模型从单一共享 `yellow` 字段调整为四类受保护业务流独立绿灯/黄灯共八个字段。
+- 周期长度和四类红灯时长按完整八阶段计算；API 要求一次提交完整八字段，拒绝未知字段及非法参数。
+- 配时方案增加 active/pending 版本号；AUTO 在完整周期边界应用，MANUAL 在安全全红边界应用。
+- 修复 MANUAL 阶段切换在同一状态更新中进入并立即离开 ALL_RED 的问题：ALL_RED 先实际下发到 SUMO，并保持至少一个仿真 step，再启动目标阶段。
+- 手动请求当前已运行阶段时作为无操作成功返回，避免无意义的全红切换。
+- 更新前后端配时共享类型、API 文档、架构、需求、测试计划和新增 ADR-015/B3 验收文档。
+
+### 沙盒验证与本机待验收
+
+- 交付包后端测试：85 passed，2 skipped。
+- skipped 项为真实 SUMO 集成测试，沙盒没有执行 Windows SUMO 实际运行验收。
+- Windows 本机正式更新、依赖检查、完整 pytest、真实 SUMO 配时/手动阶段测试和前端生产构建仍需按 B3 部署指南执行。
+- 当前配时 active/pending 版本仍在后端进程内管理；PostgreSQL `timing_plan` 持久化及 `signal_operation_log` 审计表尚未实现，明确留作后续数据库实施范围。
