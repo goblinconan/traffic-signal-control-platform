@@ -13,11 +13,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import signal, simulation
-from app.api.websocket import _payload, manager, websocket_endpoint
+from app.api.routes import intersection, signal, simulation
+from app.api.websocket import manager, websocket_endpoint
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.services.signal_service import SignalService
+from app.services.state_service import RuntimeStateService
 from app.simulation.lifecycle import SimulationLifecycle
 from app.simulation.sumo_runner import SumoRunner
 
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
     app.state.signal_service = svc
     lifecycle = SimulationLifecycle(runner, svc)
     app.state.lifecycle = lifecycle
+    app.state.state_service = RuntimeStateService(lifecycle, svc, runner, settings)
 
     stop_event = asyncio.Event()
     task = asyncio.create_task(_loop(app, stop_event), name="simulation-loop")
@@ -59,11 +61,18 @@ async def _loop(app: FastAPI, stop_event: asyncio.Event | None = None) -> None:
     runner: SumoRunner = app.state.runner
     lifecycle: SimulationLifecycle = app.state.lifecycle
     svc: SignalService = app.state.signal_service
+    last_broadcast_status: str | None = None
     while stop_event is None or not stop_event.is_set():
         await lifecycle.step_once()
-        if lifecycle.status.value == "RUNNING" and manager._clients:
+        current_status = lifecycle.status.value
+        should_publish = bool(manager._clients) and (
+            current_status == "RUNNING" or current_status != last_broadcast_status
+        )
+        if should_publish:
             try:
-                await manager.broadcast(_payload(svc, runner))
+                payload = await app.state.state_service.create_message("simulation_update")
+                await manager.broadcast(payload)
+                last_broadcast_status = current_status
             except Exception:
                 log.exception("simulation broadcast failed")
 
@@ -87,6 +96,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(signal.router, prefix="/api")
     app.include_router(simulation.router, prefix="/api")
+    app.include_router(intersection.router, prefix="/api")
 
     @app.get("/api/health")
     async def health() -> dict:

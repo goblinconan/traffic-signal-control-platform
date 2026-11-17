@@ -332,3 +332,25 @@ MANUAL 模式下：
 - 后端提供剩余时间和 `countdown_visible`；前端只负责显示。
 - 各信号组红灯剩余时间必须按真实 8 阶段周期计算，不能沿用旧双相位公式。
 - 右转采用让行通行，不按普通受控红灯倒计时处理。
+
+
+# B4 统一运行状态协议补充（协议版本 1.0）
+
+## GET `/api/simulation/state`
+
+返回完整 `simulation_snapshot`，与 WebSocket 首条消息使用相同的 Pydantic 模型。字段包含 `schema_version`、`type`、`sequence`、仿真生命周期、信号控制、active/pending 配时、车辆及 `network_version`。字段详细定义见 `docs/12-b4-unified-runtime-state.md`。
+
+## GET `/api/intersections/{intersection_id}/network`
+
+返回静态路网资源：`intersection_id`、`network_version`、`geometry`。`network_version` 为 SUMO `net.xml` 文件内容 SHA256；几何不进入每一条 WebSocket 动态更新。
+
+## B4 WebSocket 消息
+
+- 首条消息及每次重连：`type=simulation_snapshot`。
+- 后续状态：`type=simulation_update`。
+- 两类消息均包含相同的动态状态字段及严格递增 `sequence`。
+- `sequence` 允许跳号；客户端仅应用大于当前已应用序号的消息。
+- 静态网络通过 network REST 资源加载，并按 `network_version` 缓存。
+- 生命周期离开 RUNNING 时发送一次状态更新，避免客户端保留过期运行状态。
+
+既有 B1–B3 接口继续兼容；B4 不更改信号控制命令和配时请求契约。

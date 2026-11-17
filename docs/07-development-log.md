@@ -447,3 +447,13 @@ python -m pytest -q
 - skipped 项为真实 SUMO 集成测试，沙盒没有执行 Windows SUMO 实际运行验收。
 - Windows 本机正式更新、依赖检查、完整 pytest、真实 SUMO 配时/手动阶段测试和前端生产构建仍需按 B3 部署指南执行。
 - 当前配时 active/pending 版本仍在后端进程内管理；PostgreSQL `timing_plan` 持久化及 `signal_operation_log` 审计表尚未实现，明确留作后续数据库实施范围。
+
+
+## 2026-11-17：B4 统一运行状态协议实现候选
+
+- 基线：B3-complete，提交 `b493da1df6e06a41674b0dd9a376a19fc7dff5f2`。
+- 新增 REST/WS 共用的 RuntimeStateService 和 Pydantic 协议模型。
+- 新增统一运行状态查询及静态路网版本接口。
+- WebSocket 首次连接发送完整 snapshot，动态更新携带单调 sequence。
+- 前端 Hook 增加 sequence 防旧消息覆盖和 network_version 静态路网加载。
+- 当前记录为实现候选；测试与用户本机 SUMO 验收结果由交付验收记录补充，不预先标记 B4 完成。

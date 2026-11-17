@@ -355,6 +355,42 @@ class SignalService:
         self._sync_sumo()
         return self.control_state()
 
+    def right_turn_signal_states(self) -> dict[str, str]:
+        """按 SUMO 实际 TLS 状态及 controlled-links 映射返回四个进口右转灯色。"""
+        approaches = {"north": "N", "south": "S", "east": "E", "west": "W"}
+        result: dict[str, set[str]] = {key: set() for key in approaches.values()}
+        if not self._links or not self.runner.connected:
+            return {key: "r" for key in result}
+
+        actual_state = self.runner.get_tls_state(self.settings.tls_id)
+        if len(actual_state) != len(self._links):
+            raise RuntimeError(
+                f"SUMO 实际 TLS 状态长度错误: {len(actual_state)} != {len(self._links)}"
+            )
+
+        for link_index, connections in enumerate(self._links):
+            for from_lane, to_lane, via_lane in connections:
+                _, movement = self._movement_for_link(from_lane, to_lane, via_lane)
+                if movement != "right":
+                    continue
+                edge_id = from_lane.rsplit("_", 1)[0]
+                approach = next(
+                    (value for prefix, value in approaches.items() if edge_id.startswith(prefix)),
+                    None,
+                )
+                if approach is None:
+                    raise RuntimeError(f"无法识别右转进口方向: {from_lane}")
+                result[approach].add(actual_state[link_index])
+
+        normalized: dict[str, str] = {}
+        for approach, states in result.items():
+            if len(states) > 1:
+                raise RuntimeError(
+                    f"同一进口右转连接出现不一致 SUMO 灯色: approach={approach}, states={sorted(states)}"
+                )
+            normalized[approach] = next(iter(states), "r")
+        return normalized
+
     def control_state(self) -> dict:
         return {
             "tls_id": self.settings.tls_id,

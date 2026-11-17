@@ -319,6 +319,13 @@ class SimulationLifecycle:
             log.info("simulation lifecycle entered STOPPED")
             return self.snapshot()
 
+    async def read_state(self, function: Callable[[], Any]) -> Any:
+        """在生命周期操作锁内读取一致状态，避免与 TraCI 步进/控制并发。"""
+        async with self._operation_lock:
+            if self._closing:
+                raise LifecycleError("应用正在关闭，无法读取运行状态", 503)
+            return await _run_blocking_safely(function)
+
     async def run_control_action(self, function: Callable[[], Any]) -> Any:
         """在生命周期锁内执行信号控制操作，避免与 TraCI 步进并发。"""
         async with self._operation_lock:

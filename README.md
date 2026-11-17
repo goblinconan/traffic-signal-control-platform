@@ -2,73 +2,42 @@
 
 单路口交通信号控制仿真平台：SUMO + FastAPI + React + PostgreSQL。
 
-## 当前进度
+## 当前阶段
 
-- [x] 文档 00–08
-- [x] 后端信号状态机 + REST + WebSocket 骨架
-- [x] 前端 SVG 路口 + 信号状态展示骨架
-- [ ] OSM 实际路口网络替换
-- [ ] 配时修改运行时生效验证
-- [ ] Docker SUMO 部署验证
+- B0：八阶段信号映射及 SUMO 安全基线。
+- B1：仿真生命周期管理。
+- B2：AUTO/MANUAL 与信号控制启停安全。
+- B3：独立绿/黄灯配时、版本管理和人工阶段安全切换；已完成本机验收，标签 `B3-complete`。
+- B4：REST / WebSocket 统一运行状态协议；实现候选，待本机验收，见 `docs/12-b4-unified-runtime-state.md`。
+- B5：浏览器信号控制面板，见 `docs/01-requirements.md` 第 14 节。
 
-## 启动
+## 本机启动
 
-### 1. 本机 SUMO 验证
-
-```powershell
-sumo --version
-# 预期：Eclipse SUMO sumo 1.28.0
-echo $env:SUMO_HOME
-# 预期：C:\Program Files (x86)\SUMO
-```
-
-### 2. 后端
+### 后端
 
 ```powershell
-cd D:\Projects\traffic-signal-control-platform
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+Set-Location D:\Projects\traffic-signal-control-platform\backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-打开 `http://127.0.0.1:8000/docs`。
+API 文档：`http://127.0.0.1:8000/docs`。
 
-### 3. 前端
+### 前端
 
-```bash
-cd frontend
+```powershell
+Set-Location D:\Projects\traffic-signal-control-platform\frontend
 npm install
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5173`。
+默认 Vite 地址：`http://127.0.0.1:5173`。开发代理将 `/api` 和 `/ws` 转发至本机后端。
 
-### 4. Docker
+## B4 新增接口
 
-```bash
-copy .env.example .env
-docker compose up -d --build
-```
+- `GET /api/simulation/state`：REST 完整运行状态快照。
+- `WS /ws/simulation`：首条消息为 `simulation_snapshot`，后续为 `simulation_update`。
+- `GET /api/intersections/{intersection_id}/network`：静态路网及 SHA256 版本。
 
-前端 `http://localhost:3000`，后端 `http://localhost:8000/docs`。
+## Docker
 
-## 项目结构
-
-```
-backend/app/         FastAPI + 信号控制 + TraCI
-frontend/src/        React + SVG 可视化
-simulation/          SUMO 网络、路由、配置
-database/migrations/ Alembic
-docs/                需求、架构、设计、日志、部署
-```
-
-## 停止
-
-```bash
-# 本机
-Ctrl+C
-
-# Docker
-docker compose down
-```
+Docker Compose 仍是部署目标；当前 B4 交付验收以用户 Windows + SUMO 1.28.0 本机环境为准。Docker 内 SUMO/TraCI 部署仍需单独验证。

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.models.runtime_state import RuntimeStateMessage
 from app.simulation.lifecycle import LifecycleError, SimulationLifecycle
 
 router = APIRouter(prefix="/simulation", tags=["simulation"])
@@ -15,6 +16,12 @@ router = APIRouter(prefix="/simulation", tags=["simulation"])
 
 def _lifecycle(request: Request) -> SimulationLifecycle:
     return request.app.state.lifecycle
+
+
+@router.get("/state", response_model=RuntimeStateMessage)
+async def unified_state(request: Request) -> dict:
+    """B4 统一运行状态；字段结构与 WebSocket 初始快照一致。"""
+    return await request.app.state.state_service.create_message("simulation_snapshot")
 
 
 @router.get("/status")

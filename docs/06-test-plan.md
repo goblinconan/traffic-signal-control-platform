@@ -161,3 +161,23 @@ B1自动化测试文件：
 7. 默认pytest全部通过；设置 `RUN_SUMO_INTEGRATION=1` 后执行真实SUMO启停集成测试。
 
 FakeRunner和模拟Popen测试不替代用户本机的真实SUMO进程验收；本机还必须执行10次REST启停循环及外部强制终止测试。
+
+
+## 12. B4 REST / WebSocket 统一状态协议专项
+
+自动化测试新增：
+
+- `backend/tests/test_runtime_state.py`：统一快照字段、序号、阶段映射、控制状态、配时版本、车辆和 network_version。
+- `backend/tests/test_websocket.py`：首次连接发送 simulation_snapshot、断开清理及重连快照语义。
+- `backend/tests/test_b4_sumo_state_integration.py`：真实 SUMO 运行时统一快照、实际 TLS、controlled-links 和网络版本。
+- `backend/tests/test_runtime_state_api.py`：REST `/api/simulation/state` 与静态网络资源接口。
+
+本机验收还应验证：
+
+1. WebSocket 连接时先收到 `simulation_snapshot`，随后收到 `simulation_update`。
+2. 连续消息 sequence 严格递增；客户端重复/倒序消息不覆盖最新状态。
+3. 浏览器断开后重新连接，首条消息仍是完整快照。
+4. 停止仿真后，客户端收到 STOPPED 更新且车辆数组为空。
+5. 修改 net.xml 内容后 network_version 改变；动态 WS 消息不携带 geometry。
+6. REST 快照与同一仿真时刻的 WS 消息在 lifecycle/control/timing/groups 字段语义一致。
+7. B3 原有安全控制测试和真实 SUMO 专项回归通过。

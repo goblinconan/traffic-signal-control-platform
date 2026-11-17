@@ -108,3 +108,53 @@ def test_concurrent_http_start_only_starts_runner_once() -> None:
         assert lifecycle.status.value == "RUNNING"
 
     asyncio.run(run_test())
+
+class BlockingStepSignalService(FakeSignalService):
+    def __init__(self) -> None:
+        self.started_calls = 0
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def step(self) -> None:
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("测试未及时释放仿真步进")
+
+
+def test_state_read_waits_for_inflight_simulation_step() -> None:
+    class NonBlockingStartRunner(FakeRunner):
+        def start(self) -> None:
+            self.connected = True
+            self.process_alive = True
+
+        def stop(self) -> None:
+            self.connected = False
+            self.process_alive = False
+
+    async def run_test() -> None:
+        runner = NonBlockingStartRunner()
+        signal_service = BlockingStepSignalService()
+        lifecycle = SimulationLifecycle(runner, signal_service)
+        await lifecycle.start()
+
+        step_task = asyncio.create_task(lifecycle.step_once())
+        entered = await asyncio.to_thread(signal_service.started.wait, 3)
+        assert entered, "仿真步进未进入阻塞区间"
+
+        read_started = asyncio.Event()
+        def read_marker() -> str:
+            read_started.set()
+            return "consistent-state"
+
+        read_task = asyncio.create_task(lifecycle.read_state(read_marker))
+        await asyncio.sleep(0.05)
+        assert not read_task.done(), "状态读取不应越过正在执行的仿真 step"
+
+        signal_service.release.set()
+        await asyncio.wait_for(step_task, timeout=3)
+        result = await asyncio.wait_for(read_task, timeout=3)
+        assert result == "consistent-state"
+        assert read_started.is_set()
+        await lifecycle.stop()
+
+    asyncio.run(run_test())

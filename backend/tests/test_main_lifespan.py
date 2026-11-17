@@ -12,6 +12,11 @@ from app import main
 
 class FakeSettings:
     app_name = "Lifecycle Test"
+    tls_id = "intersection_0"
+    sumo_config = str(
+        __import__("pathlib").Path(__file__).resolve().parents[2]
+        / "simulation" / "config" / "intersection.sumocfg"
+    )
 
 
 class FakeRunner:

@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import xml.etree.ElementTree as ET
@@ -42,6 +43,31 @@ def _parse_shape(shape_text: str | None) -> list[dict[str, float]]:
         points.append({"x": x, "y": y})
 
     return points
+
+
+def get_network_version(net_file: str | Path) -> str:
+    """以 net.xml 内容 SHA256 标识静态路网版本。"""
+    path = Path(net_file).resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"SUMO 路网文件不存在: {path}")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def resolve_network_file(sumo_config: str | Path) -> Path:
+    """从 SUMO 配置文件解析 net.xml 的绝对路径。"""
+    config_path = Path(sumo_config).resolve()
+    if not config_path.is_file():
+        raise FileNotFoundError(f"SUMO 配置文件不存在: {config_path}")
+    root = ET.parse(config_path).getroot()
+    net_element = root.find("./input/net-file")
+    if net_element is None or not net_element.get("value"):
+        raise ValueError("SUMO 配置文件缺少有效的 input/net-file")
+    net_path = Path(net_element.get("value", ""))
+    if not net_path.is_absolute():
+        net_path = (config_path.parent / net_path).resolve()
+    if not net_path.is_file():
+        raise FileNotFoundError(f"SUMO 路网文件不存在: {net_path}")
+    return net_path
 
 
 def load_network_geometry(net_file: str | Path) -> dict[str, Any]:
@@ -103,6 +129,7 @@ def load_network_geometry(net_file: str | Path) -> dict[str, Any]:
 
     location = root.find("location")
     result = {
+        "network_version": get_network_version(path),
         "junctions": junctions,
         "edges": edges,
         "internal_lanes": internal_lanes,

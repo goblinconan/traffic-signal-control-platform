@@ -62,7 +62,8 @@ export function IntersectionView({
 }: {
   data: SimulationUpdate | null;
 }) {
-  const sig = data?.signal;
+  const signal = data?.signal_control;
+  const group = (id: string) => signal?.groups.find((item) => item.group_id === id);
   const network = data?.network;
 
   const junctionShape = data ? getJunctionShape(data) : [];
@@ -181,13 +182,13 @@ export function IntersectionView({
         <SignalBox
           x={-20}
           y={-20}
-          state={sig?.ns_straight}
+          state={group("NS_STRAIGHT")}
           label="直行"
         />
         <SignalBox
           x={40}
           y={-20}
-          state={sig?.ns_left}
+          state={group("NS_LEFT")}
           label="左转"
         />
       </g>
@@ -207,13 +208,13 @@ export function IntersectionView({
         <SignalBox
           x={-20}
           y={-20}
-          state={sig?.ew_straight}
+          state={group("EW_STRAIGHT")}
           label="直行"
         />
         <SignalBox
           x={40}
           y={-20}
-          state={sig?.ew_left}
+          state={group("EW_LEFT")}
           label="左转"
         />
       </g>

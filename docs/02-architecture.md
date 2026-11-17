@@ -1049,3 +1049,24 @@ flowchart TD
 - WebSocket 重连可恢复完整状态。
 - 视图切换不影响仿真。
 - 路网坐标转换由后端明确提供，不在二维和三维中分别硬编码补偿值。
+
+
+# B4 架构补充：统一运行状态模型
+
+## 24. 唯一状态消息构造器
+
+`RuntimeStateService` 负责组合 `SimulationLifecycle`、`SignalService`、`TimingService`、`SumoRunner` 与静态网络版本。REST `/api/simulation/state` 和 WebSocket `/ws/simulation` 必须调用同一构造器，不得各自拼接字段。
+
+## 25. 采样一致性与序列号
+
+`SimulationLifecycle.read_state()` 使用与 step、start、stop 和控制操作相同的生命周期操作锁，保证一次快照不会跨越正在执行的仿真步。Runner 内部锁继续保护具体 TraCI 连接访问。消息序号由单进程 `RuntimeStateService` 递增；序号允许跳号，客户端丢弃小于或等于已应用序号的消息。
+
+## 26. 静态与动态数据分离
+
+静态路网通过 `GET /api/intersections/{intersection_id}/network` 提供，版本为 net.xml 内容 SHA256。WebSocket 快照和更新只携带 `network_version`，车辆和信号动态数据每次更新。客户端仅在版本变化时重新获取静态网络。
+
+## 27. B4 生命周期发布
+
+WebSocket 每次连接先发送完整 `simulation_snapshot`。运行期间发送 `simulation_update`；当生命周期从 RUNNING 转为 STOPPED、FAILED 等状态时，额外发布一次状态更新。WebSocket 客户端数量和发送异常不得影响 SUMO 控制状态机。
+
+详细协议及验收见 `docs/12-b4-unified-runtime-state.md` 与 ADR-016。
