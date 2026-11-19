@@ -48,6 +48,21 @@ class FakeRunner:
 
 
 class FakeSignalService:
+    @staticmethod
+    def configured_timing(settings):
+        from app.models.signal import TimingConfig
+
+        return TimingConfig(
+            ns_left_green=20.0,
+            ns_left_yellow=3.0,
+            ns_straight_green=40.0,
+            ns_straight_yellow=3.0,
+            ew_left_green=20.0,
+            ew_left_yellow=3.0,
+            ew_straight_green=40.0,
+            ew_straight_yellow=3.0,
+        )
+
     def __init__(self, runner: FakeRunner) -> None:
         self.runner = runner
         self.step_started = threading.Event()
@@ -55,7 +70,7 @@ class FakeSignalService:
         self.step_calls = 0
 
     @classmethod
-    def create(cls, settings, runner):
+    def create(cls, settings, runner, initial_timing=None):
         return cls(runner)
 
     def on_started(self) -> None:

@@ -34,19 +34,27 @@ class SignalService:
     _pending_mode: ControlMode | None = None
     _pending_manual_phase: PhaseId | None = None
 
+    @staticmethod
+    def configured_timing(settings: Settings) -> TimingConfig:
+        return TimingConfig(
+            ns_left_green=settings.ns_left_green,
+            ns_left_yellow=settings.ns_left_yellow,
+            ns_straight_green=settings.ns_straight_green,
+            ns_straight_yellow=settings.ns_straight_yellow,
+            ew_left_green=settings.ew_left_green,
+            ew_left_yellow=settings.ew_left_yellow,
+            ew_straight_green=settings.ew_straight_green,
+            ew_straight_yellow=settings.ew_straight_yellow,
+        )
+
     @classmethod
-    def create(cls, settings: Settings, runner: SumoRunner) -> "SignalService":
+    def create(
+        cls, settings: Settings, runner: SumoRunner,
+        initial_timing: TimingConfig | None = None,
+    ) -> "SignalService":
         timing = TimingService(
-            TimingConfig(
-                ns_left_green=settings.ns_left_green,
-                ns_left_yellow=settings.ns_left_yellow,
-                ns_straight_green=settings.ns_straight_green,
-                ns_straight_yellow=settings.ns_straight_yellow,
-                ew_left_green=settings.ew_left_green,
-                ew_left_yellow=settings.ew_left_yellow,
-                ew_straight_green=settings.ew_straight_green,
-                ew_straight_yellow=settings.ew_straight_yellow,
-            )
+            initial_timing if initial_timing is not None
+            else cls.configured_timing(settings)
         )
         controller = SignalController(timing.active)
         return cls(settings, runner, timing, controller)
@@ -238,7 +246,15 @@ class SignalService:
             timing=self.timing.active,
         )
 
-    def submit_timing(self, candidate: TimingConfig) -> dict:
+    def timing_snapshot(self) -> dict:
+        """返回包含当前生效方案来源的完整配时状态。"""
+        return self.timing.snapshot()
+
+    def submit_timing(
+        self,
+        candidate: TimingConfig,
+        source: dict | None = None,
+    ) -> dict:
         if self.control_status != ControlStatus.ENABLED:
             log.warning(
                 "timing update rejected: control_status=%s candidate=%s",
@@ -247,7 +263,7 @@ class SignalService:
             )
             raise ValueError("信号控制未启用，拒绝配时控制命令")
 
-        pending = self.timing.submit(candidate)
+        pending = self.timing.submit(candidate, source)
         if pending is None:
             result = {
                 "accepted": True,

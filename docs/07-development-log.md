@@ -457,3 +457,25 @@ python -m pytest -q
 - WebSocket 首次连接发送完整 snapshot，动态更新携带单调 sequence。
 - 前端 Hook 增加 sequence 防旧消息覆盖和 network_version 静态路网加载。
 - 当前记录为实现候选；测试与用户本机 SUMO 验收结果由交付验收记录补充，不预先标记 B4 完成。
+
+
+## 2026-11-18 B5 浏览器控制台交付候选
+
+### 完成的代码工作（待用户本机验收）
+
+1. 基于 B4-complete `f2052b539ce9c50782a25b50471c4725874d8b8e`，新增浏览器信号控制操作台。
+2. 保留 B4 WebSocket Hook、统一状态类型和二维 SVG 路口视图；前端通过既有 REST API 调用仿真、控制启停、模式、人工阶段和配时操作。
+3. 新增配时前端预校验：绿灯 >8 秒、黄灯 >0 秒、计算红灯 >10 秒；后端校验仍是最终权威。
+4. 增加服务端操作反馈、FAILED 清理入口、DISABLING 安全过渡状态展示、active/pending 配时版本展示。
+5. 增加 B5 部署说明、只读 API 冒烟脚本及 A1–A5 工作评估。
+
+### 当前验证状态
+
+- 代码生成和静态源码核对已完成。
+- 本交付环境未包含前端 `node_modules`，且 npm 离线缓存缺少 lockfile 所需包；因此尚未在此环境运行 `npm run build`。
+- B5 交付尚未在用户 Windows + SUMO 环境部署；真实 SUMO / 浏览器端到端验收待用户执行。
+- 不得将本节代码交付候选标记为 B5 已验收完成。
+
+### 下一步
+
+按 `docs/14-b5-browser-control-console.md` 执行部署、pytest、npm build、只读 API 冒烟检查和浏览器真实 SUMO 验收；根据结果修复后再发布 B5-complete。

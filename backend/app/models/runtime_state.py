@@ -49,11 +49,20 @@ class ComputedTiming(StrictModel):
     ew_straight_red: float
 
 
+class TimingSource(StrictModel):
+    """配时方案来源信息。"""
+    kind: Literal["default", "saved_plan", "custom"]
+    name: str
+    plan_id: str | None
+
+
 class TimingState(StrictModel):
     active: TimingConfig
     pending: TimingConfig | None
     timing_version: int = Field(ge=1)
     pending_timing_version: int | None
+    active_source: TimingSource
+    pending_source: TimingSource | None
     computed: ComputedTiming
 
 

@@ -18,6 +18,12 @@ export interface TimingConfig {
   ew_straight_green: number; ew_straight_yellow: number;
 }
 
+export interface TimingSource {
+  kind: "default" | "saved_plan" | "custom";
+  name: string;
+  plan_id: string | null;
+}
+
 export interface DirectionState {
   state: LightState; remaining: number; countdown_visible: boolean;
 }
@@ -36,10 +42,21 @@ export interface SignalControlState {
   pending_mode: ControlMode | null; pending_manual_phase: PhaseId | null;
   groups: SignalGroupState[]; right_turns: RightTurnState[];
 }
+
 export interface TimingState {
-  active: TimingConfig; pending: TimingConfig | null;
-  timing_version: number; pending_timing_version: number | null;
-  computed: { cycle_length: number; ns_left_red: number; ns_straight_red: number; ew_left_red: number; ew_straight_red: number };
+  active: TimingConfig;
+  pending: TimingConfig | null;
+  timing_version: number;
+  pending_timing_version: number | null;
+  active_source: TimingSource;
+  pending_source: TimingSource | null;
+  computed: {
+    cycle_length: number;
+    ns_left_red: number;
+    ns_straight_red: number;
+    ew_left_red: number;
+    ew_straight_red: number;
+  };
 }
 export interface VehicleSnapshot {
   id: string; x: number; y: number; angle: number; speed: number; length: number; width: number;

@@ -1,43 +1,46 @@
-# traffic-signal-control-platform
+# Traffic Signal Control Platform
 
-单路口交通信号控制仿真平台：SUMO + FastAPI + React + PostgreSQL。
+单路口交通信号控制仿真平台：SUMO + FastAPI + TraCI + React + TypeScript + Vite。
 
-## 当前阶段
+## 阶段状态
 
-- B0：八阶段信号映射及 SUMO 安全基线。
-- B1：仿真生命周期管理。
-- B2：AUTO/MANUAL 与信号控制启停安全。
-- B3：独立绿/黄灯配时、版本管理和人工阶段安全切换；已完成本机验收，标签 `B3-complete`。
-- B4：REST / WebSocket 统一运行状态协议；实现候选，待本机验收，见 `docs/12-b4-unified-runtime-state.md`。
-- B5：浏览器信号控制面板，见 `docs/01-requirements.md` 第 14 节。
+- B0–B3：已完成既定实现；真实交通冲突与右转让行仍有专项验收项。
+- B4：已发布 `B4-complete`，commit `f2052b539ce9c50782a25b50471c4725874d8b8e`。
+- B5：本交付增加浏览器控制台代码；须在 Windows + SUMO 环境构建、部署并完成真实联调后才能标记完成。
+- A1–A5：待实施；现状与估算见 `docs/15-a1-a5-assessment.md`。
 
-## 本机启动
+## 部署 B5
 
-### 后端
+1. 将交付 ZIP 解压到任意临时目录。
+2. 在项目根目录运行解压目录中的 `B5-apply-delivery.ps1`（默认目标为 `D:\Projects\traffic-signal-control-platform`）。
+3. 按 `docs/14-b5-browser-control-console.md` 执行后端测试、前端构建、服务启动和浏览器验收。
+
+## 本机开发运行
+
+后端：
 
 ```powershell
 Set-Location D:\Projects\traffic-signal-control-platform\backend
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-API 文档：`http://127.0.0.1:8000/docs`。
-
-### 前端
+前端（另开终端）：
 
 ```powershell
 Set-Location D:\Projects\traffic-signal-control-platform\frontend
-npm install
+npm ci
 npm run dev
 ```
 
-默认 Vite 地址：`http://127.0.0.1:5173`。开发代理将 `/api` 和 `/ws` 转发至本机后端。
+浏览器：`http://127.0.0.1:5173/`。API 文档：`http://127.0.0.1:8000/docs`。
 
-## B4 新增接口
+只读 API 冒烟测试：
 
-- `GET /api/simulation/state`：REST 完整运行状态快照。
-- `WS /ws/simulation`：首条消息为 `simulation_snapshot`，后续为 `simulation_update`。
-- `GET /api/intersections/{intersection_id}/network`：静态路网及 SHA256 版本。
+```powershell
+Set-Location D:\Projects\traffic-signal-control-platform
+powershell -ExecutionPolicy Bypass -File .\scripts\Test-B5-Api.ps1
+```
 
-## Docker
+## 安全边界
 
-Docker Compose 仍是部署目标；当前 B4 交付验收以用户 Windows + SUMO 1.28.0 本机环境为准。Docker 内 SUMO/TraCI 部署仍需单独验证。
+浏览器只调用现有 REST 业务接口，不直接写入 SUMO 灯色。仿真生命周期、控制启停、AUTO/MANUAL、黄灯过渡、ALL_RED、人工阶段和配时生效边界均由后端权威控制。

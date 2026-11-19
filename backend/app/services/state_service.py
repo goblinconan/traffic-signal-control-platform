@@ -93,7 +93,7 @@ class RuntimeStateService:
             {"approach": approach, "state": "PERMISSIVE_YIELD", "signal_state": right_turn_lights[approach]}
             for approach in ("N", "S", "E", "W")
         ]
-        timing = self._signal_service.timing.snapshot()
+        timing = self._signal_service.timing_snapshot()
         vehicles = [asdict(vehicle) for vehicle in self._runner.vehicles()]
         pending_manual_phase = control["pending_manual_phase"]
         next_phase = (

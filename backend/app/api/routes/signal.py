@@ -125,7 +125,7 @@ async def get_timing(tls_id: str, request: Request) -> dict:
     svc = _svc(request)
     if tls_id != svc.settings.tls_id:
         raise HTTPException(404, "unknown tls_id")
-    return svc.timing.snapshot()
+    return svc.timing_snapshot()
 
 
 @router.put("/{tls_id}/timing")

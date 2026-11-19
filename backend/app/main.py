@@ -13,11 +13,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import intersection, signal, simulation
+from app.api.routes import intersection, signal, simulation, timing_plans
 from app.api.websocket import manager, websocket_endpoint
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.services.signal_service import SignalService
+from app.services.timing_plan_store import TimingPlanStore
 from app.services.state_service import RuntimeStateService
 from app.simulation.lifecycle import SimulationLifecycle
 from app.simulation.sumo_runner import SumoRunner
@@ -30,7 +31,12 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     runner = SumoRunner(settings=settings)
-    svc = SignalService.create(settings, runner)
+    plan_store = TimingPlanStore()
+    configured_default = SignalService.configured_timing(settings)
+    frozen_default = plan_store.initialize(settings.tls_id, configured_default)
+    svc = SignalService.create(settings, runner, initial_timing=frozen_default)
+    app.state.timing_plan_store = plan_store
+
     app.state.settings = settings
     app.state.runner = runner
     app.state.signal_service = svc
@@ -97,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(signal.router, prefix="/api")
     app.include_router(simulation.router, prefix="/api")
     app.include_router(intersection.router, prefix="/api")
+    app.include_router(timing_plans.router, prefix="/api")
 
     @app.get("/api/health")
     async def health() -> dict:
